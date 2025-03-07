@@ -51,11 +51,14 @@ public:
     none, move, eat, lose
   };
   
+  // Option to allow the snake to pass through itself (cheat mode)
+  bool cheat_mode = false;
+  
   inline bool win()  const { return state == State::win; }
   inline bool loss() const { return state == State::loss; }
   inline bool done() const { return state != State::playing; }
   
-  Game(CoordRange dimensions, RNG const& rng = global_rng.next_rng());
+  Game(CoordRange dimensions, RNG const& rng = global_rng.next_rng(), bool cheat_mode = false);
   Game(Game const&) = delete;
   Event move(Dir dir);
 
@@ -73,8 +76,9 @@ std::ostream& operator << (std::ostream& out, Game const& game);
 
 #include <algorithm>
 
-Game::Game(CoordRange dims, RNG const& base_rng)
+Game::Game(CoordRange dims, RNG const& base_rng, bool cheat_mode)
   : GameBase(dims)
+  , cheat_mode(cheat_mode)
   , rng(base_rng)
 {
   Coord start = dims.random(rng);
@@ -99,10 +103,20 @@ Game::Event Game::move(Dir dir) {
   if (state != State::playing) return Event::none;
   turn++;
   Coord next = snake.front() + dir;
-  if (!grid.valid(next) || grid[next]) {
+  
+  // Check if the next position is valid
+  if (!grid.valid(next)) {
+    // Always check for grid boundaries
     state = State::loss;
     return Event::lose;
   }
+  
+  // Check for snake collisions - skip this check in cheat mode
+  if (!cheat_mode && grid[next]) {
+    state = State::loss;
+    return Event::lose;
+  }
+  
   // lose after taking too long
   int max_turns = grid.size() * grid.size();
   if (turn > max_turns) {
