@@ -159,6 +159,9 @@ AgentFactory agents[] = {
   {"zig-zag-cut", "Follows a zig-zag cycle, but can take shortcuts", [](Config& config) {
     return std::make_unique<CutAgent>();
   }},
+  {"cell", "Limit movement to a tree of 2x2 cells", [](Config&) {
+    return std::make_unique<CellTreeAgent>();
+  }},
   {"cell1", "Cell tree agent with limited lookahead", [](Config&) {
     auto agent = std::make_unique<CellTreeAgent>();
     agent->lookahead = Lookahead::one;
