@@ -88,6 +88,14 @@ enum class DetourStrategy {
   nearest_unreachable
 };
 
+// Metrics for tracking unreachable cells
+struct UnreachableMetrics {
+  int first_unreachable_step = -1;  // -1 means no unreachable cells have been detected yet
+  int steps_with_unreachables = 0;
+  int cumulative_unreachable_cells = 0;
+  int length_at_first_unreachable = 0;
+};
+
 struct CellTreeAgent : Agent {
 public:
   // config
@@ -104,6 +112,17 @@ public:
 
 private:
   std::vector<Coord> cached_path;
+  UnreachableMetrics metrics;
+
+  void logUnreachableMetrics(const Game& game, AgentLog* log) {
+    std::vector<int> metrics_data = {
+      metrics.first_unreachable_step,
+      metrics.steps_with_unreachables,
+      metrics.cumulative_unreachable_cells,
+      metrics.length_at_first_unreachable
+    };
+    log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
+  }
 
 public:
   Dir operator () (Game const& game, AgentLog* log = nullptr) override {
@@ -140,6 +159,7 @@ public:
       auto path_copy = path;
       path_copy.push_back(pos);
       log->add(game.turn, AgentLog::Key::plan, std::move(path_copy));
+      logUnreachableMetrics(game, log);
     }
     
     if (pos2 == INVALID) {
@@ -160,11 +180,27 @@ public:
       auto after = after_moves(game, path, lookahead);
       auto unreachable = cell_tree_unreachables(after, dists);
       if (unreachable.any) {
+        // Update metrics for unreachable cells
+        if (metrics.first_unreachable_step == -1) {
+          metrics.first_unreachable_step = game.turn;
+          metrics.length_at_first_unreachable = game.snake.size();
+        }
+        metrics.steps_with_unreachables++;
+        
+        // Count unreachable cells
+        int unreachable_count = 0;
+        for (bool r : unreachable.reachable) {
+          if (!r) unreachable_count++;
+        }
+        metrics.cumulative_unreachable_cells += unreachable_count;
+        
         if (log) {
           Grid<bool> unreachable_grid(game.dimensions());
           std::transform(unreachable.reachable.begin(), unreachable.reachable.end(), unreachable_grid.begin(), [](bool r){ return !r; });
           log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
+          
         }
+        
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
           for (auto dir : dirs) {
@@ -197,6 +233,10 @@ public:
           std::cout << "Unreachable grid points (will) exist, but no alternative moves or cached path" << std::endl;
         }
       }
+      
+      if (log) {
+        logUnreachableMetrics(game, log);
+      }
     }
     
     // use as new cached path
@@ -204,6 +244,11 @@ public:
     cached_path.pop_back();
     
     return pos2 - pos;
+  }
+  
+  // Getter for the metrics
+  UnreachableMetrics getMetrics() const {
+    return metrics;
   }
 };
 

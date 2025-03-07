@@ -12,12 +12,13 @@
 struct AgentLog {
   struct NoEntry {};
   struct CopyEntry {};
-  using LogEntry = std::variant<NoEntry, CopyEntry, std::vector<Coord>, Grid<bool>>;
+  using LogEntry = std::variant<NoEntry, CopyEntry, std::vector<Coord>, Grid<bool>, std::vector<int>>;
   
   enum Key {
     cycle,
     plan,
     unreachable,
+    unreachable_metrics,
     MAX_KEY
   };
   
@@ -35,6 +36,7 @@ struct AgentLog {
     if (key == cycle) return "cycles";
     if (key == plan) return "plans";
     if (key == unreachable) return "unreachables";
+    if (key == unreachable_metrics) return "unreachable_metrics";
     else throw std::logic_error("key_name");
   }
 };

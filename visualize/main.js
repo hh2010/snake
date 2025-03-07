@@ -195,6 +195,40 @@ function render_timeline(ctx, game, t) {
   }
 }
 
+function render_metrics(game, t) {
+  const metricsContainer = document.getElementById("unreachable-metrics");
+  if (!metricsContainer) return;
+  
+  // Always show metrics for cell tree agent modes
+  metricsContainer.style.display = game && game.agent && game.agent.match(/cell/) ? 'block' : 'none';
+  
+  if (!game) return;
+  
+  // Get metrics from the latest turn data point
+  const ti = Math.floor(t);
+  let firstUnreachable = -1;
+  let stepsWithUnreachables = 0;
+  let cumulativeUnreachableCells = 0;
+  let lengthAtFirstUnreachable = 0;
+  
+  if (game.unreachable_metrics && game.unreachable_metrics[ti]) {
+    const metrics = game.unreachable_metrics[ti];
+    // Process as direct integers rather than coordinates
+    firstUnreachable = metrics[0];
+    stepsWithUnreachables = metrics[1];
+    cumulativeUnreachableCells = metrics[2];
+    lengthAtFirstUnreachable = metrics[3] || 0;
+  }
+  
+  metricsContainer.innerHTML = `
+    <div><strong>Unreachable Metrics:</strong></div>
+    <div>First unreachable: ${firstUnreachable >= 0 ? firstUnreachable : '0'}</div>
+    <div>Length at first unreachable: ${lengthAtFirstUnreachable > 0 ? lengthAtFirstUnreachable : '0'}</div>
+    <div>Steps with unreachables: ${stepsWithUnreachables}</div>
+    <div>Cumulative unreachable cells: ${cumulativeUnreachableCells}</div>
+  `;
+}
+
 function render_legend() {
   let w = 40, h = 20, scale = 20;
   // snake
@@ -365,6 +399,18 @@ function load_game(data) {
   if (game.cycles) decode_paths(game.cycles, game.snake_pos.length);
   if (game.plans) decode_paths(game.plans, game.snake_pos.length);
   if (game.unreachables) decode_grids(game.unreachables, game.snake_pos.length);
+  
+  // Process unreachable_metrics if available
+  if (game.unreachable_metrics) {
+    for (let i=0; i<game.snake_pos.length; ++i) {
+      if (i >= game.unreachable_metrics.length || game.unreachable_metrics[i] === 1) {
+        game.unreachable_metrics[i] = game.unreachable_metrics[i-1]; // same as previous
+      } else if (game.unreachable_metrics[i] === 0) {
+        game.unreachable_metrics[i] = undefined;
+      }
+    }
+  }
+  
   return game;
 }
 
@@ -393,6 +439,7 @@ function init() {
     t = Math.min(game.snake_pos.length-1,t);
     render(ctx, game, t);
     render_timeline(timeline_ctx, game, t);
+    render_metrics(game, t);
     turn_lbl.innerText = "turn " + Math.floor(t) + "/" + (game.snake_pos.length-1);
     size_lbl.innerText = "length " + game.snake_size[Math.floor(t)];
   }

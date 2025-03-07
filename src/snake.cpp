@@ -60,13 +60,36 @@ struct Stats {
   std::vector<int> turns;
   std::vector<bool> wins;
   
+  // Unreachable metrics for cell tree agents
+  std::vector<int> first_unreachable_turns;
+  std::vector<int> lengths_at_first_unreachable;
+  std::vector<int> steps_with_unreachables;
+  std::vector<int> cumulative_unreachable_cells;
+  
   void add(Game const& game);
+  void add(Game const& game, Agent* agent);
 };
 
 void Stats::add(Game const& game) {
   wins.push_back(game.win());
   if (game.win()) {
     turns.push_back(game.turn);
+  }
+}
+
+void Stats::add(Game const& game, Agent* agent) {
+  add(game);
+  
+  // Extract metrics from cell tree agents
+  auto* cell_agent = dynamic_cast<CellTreeAgent*>(agent);
+  if (cell_agent) {
+    auto metrics = cell_agent->getMetrics();
+    if (metrics.first_unreachable_step >= 0) {
+      first_unreachable_turns.push_back(metrics.first_unreachable_step);
+      lengths_at_first_unreachable.push_back(metrics.length_at_first_unreachable);
+    }
+    steps_with_unreachables.push_back(metrics.steps_with_unreachables);
+    cumulative_unreachable_cells.push_back(metrics.cumulative_unreachable_cells);
   }
 }
 
@@ -77,6 +100,20 @@ std::ostream& operator << (std::ostream& out, Stats const& stats) {
   if (mean(stats.wins) < 1) {
     out << "  LOST: " << (1-mean(stats.wins))*100 << "%";
   }
+  
+  // Add unreachable metrics if they exist
+  if (!stats.first_unreachable_turns.empty()) {
+    out << "\nunreachable metrics:";
+    out << "\n  first unreachable: mean " << mean(stats.first_unreachable_turns);
+    out << ", quantiles " << quantiles(stats.first_unreachable_turns);
+    out << "\n  length at first unreachable: mean " << mean(stats.lengths_at_first_unreachable);
+    out << ", quantiles " << quantiles(stats.lengths_at_first_unreachable);
+    out << "\n  steps with unreachables: mean " << mean(stats.steps_with_unreachables);
+    out << ", quantiles " << quantiles(stats.steps_with_unreachables);
+    out << "\n  cumulative unreachable cells: mean " << mean(stats.cumulative_unreachable_cells);
+    out << ", quantiles " << quantiles(stats.cumulative_unreachable_cells);
+  }
+  
   return out;
 }
 
@@ -359,6 +396,21 @@ void write_json_log(std::ostream& out, AgentLog::LogEntry const* prev, Grid<bool
   }
   write_json_grid(out, grid, compact);
 }
+
+void write_json_log(std::ostream& out, AgentLog::LogEntry const* prev, std::vector<int> const& metrics, bool compact) {
+  // Handle integer metrics vector specifically for unreachable metrics
+  out << "[";
+  bool first = true;
+  for (auto const& x : metrics) {
+    if (!first) {
+      out << ",";
+    }
+    first = false;
+    out << x;
+  }
+  out << "]";
+}
+
 void write_json(std::ostream& out, std::vector<AgentLog::LogEntry> const& xs, bool compact) {
   out << "[";
   AgentLog::LogEntry const* prev = nullptr;
@@ -439,9 +491,9 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
         play(game, *agent, config);
         {
           std::lock_guard<std::mutex> guard(mutex);
-          stats.add(game);
+          stats.add(game, agent.get());
           if (!config.quiet) {
-            std::cout << stats.wins.size() << "/" << config.num_rounds << "  " << stats << "\033[K\r" << std::flush;
+            std::cout << stats.wins.size() << "/" << config.num_rounds << "\033[K\r" << std::flush;
           }
         }
       }
@@ -465,16 +517,15 @@ Stats play_multiple(AgentGen make_agent, Config& config, bool is_cheat_agent = f
     Game game(config.board_size, config.rng.next_rng(), is_cheat_agent);
     auto agent = make_agent(config);
     play(game, *agent, config);
-    stats.add(game);
+    stats.add(game, agent.get());
     if (!config.quiet) {
       if (!game.win()) std::cout << game;
-      std::cout << (i+1) << "/" << config.num_rounds << "  " << stats << "\033[K\r" << std::flush;
+      std::cout << (i+1) << "/" << config.num_rounds << "\033[K\r" << std::flush;
     }
   }
   if (!config.quiet) std::cout << "\033[K\r";
   return stats;
 }
-
 
 void play_all_agents(Config& config, std::ostream& out = std::cout) {
   using namespace std;

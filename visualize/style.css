@@ -37,3 +37,19 @@ button {
   background: #444;
   color: white;
 }
+
+.metrics-container {
+  background-color: #444;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 10px;
+  font-size: 0.9em;
+}
+
+.metrics-container div {
+  margin-bottom: 0.5em;
+}
+
+.metrics-container strong {
+  color: #8af;
+}

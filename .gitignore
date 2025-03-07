@@ -1,2 +1,5 @@
 build/
 ideas/
+*.json
+*.exe
+.vscode/
