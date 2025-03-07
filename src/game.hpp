@@ -51,14 +51,14 @@ public:
     none, move, eat, lose
   };
   
-  // Option to allow the snake to pass through itself (cheat mode)
-  bool cheat_mode = false;
+  // Flag to ignore snake self-collisions (for cheat agent)
+  bool ignore_snake_collisions = false;
   
   inline bool win()  const { return state == State::win; }
   inline bool loss() const { return state == State::loss; }
   inline bool done() const { return state != State::playing; }
   
-  Game(CoordRange dimensions, RNG const& rng = global_rng.next_rng(), bool cheat_mode = false);
+  Game(CoordRange dimensions, RNG const& rng = global_rng.next_rng(), bool ignore_snake_collisions = false);
   Game(Game const&) = delete;
   Event move(Dir dir);
 
@@ -76,10 +76,10 @@ std::ostream& operator << (std::ostream& out, Game const& game);
 
 #include <algorithm>
 
-Game::Game(CoordRange dims, RNG const& base_rng, bool cheat_mode)
+Game::Game(CoordRange dims, RNG const& base_rng, bool ignore_snake_collisions)
   : GameBase(dims)
-  , cheat_mode(cheat_mode)
   , rng(base_rng)
+  , ignore_snake_collisions(ignore_snake_collisions)
 {
   Coord start = dims.random(rng);
   snake.push_front(start);
@@ -103,16 +103,7 @@ Game::Event Game::move(Dir dir) {
   if (state != State::playing) return Event::none;
   turn++;
   Coord next = snake.front() + dir;
-  
-  // Check if the next position is valid
-  if (!grid.valid(next)) {
-    // Always check for grid boundaries
-    state = State::loss;
-    return Event::lose;
-  }
-  
-  // Check for snake collisions - skip this check in cheat mode
-  if (!cheat_mode && grid[next]) {
+  if (!grid.valid(next) || (!ignore_snake_collisions && grid[next])) {
     state = State::loss;
     return Event::lose;
   }

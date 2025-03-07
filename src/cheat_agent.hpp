@@ -20,10 +20,6 @@ struct CheatAgent : Agent {
     
     // Always recalculate path when apple position changes
     if (cached_path.empty() || apple != game.apple_pos) {
-      // Create a custom grid that only has walls (grid boundaries) as obstacles
-      // The snake's body is NOT considered an obstacle
-      Grid<bool> walls(game.grid.coords(), false);
-      
       // Define an edge function that only checks for wall collisions, ignoring snake body
       auto edge = [&](Coord a, Coord b, Dir) {
         // Only check if the position is valid (inside grid boundaries)

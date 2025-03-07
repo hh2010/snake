@@ -41,7 +41,8 @@ class LoggedGame : public Game {
 public:
   Log log;
   
-  LoggedGame(CoordRange dims, RNG const& rng, bool cheat_mode = false) : Game(dims, rng, cheat_mode) {
+  LoggedGame(CoordRange dims, RNG const& rng, bool ignore_snake_collisions = false) 
+    : Game(dims, rng, ignore_snake_collisions) {
     log.log(*this, Game::Event::none);
   }
   Event move(Dir d) {
@@ -94,7 +95,6 @@ struct Config {
   int num_threads = static_cast<int>(std::thread::hardware_concurrency());
   std::string json_file;
   bool json_compact = true;
-  bool cheat_mode = false;  // New parameter for cheat mode (ignore snake self-collisions)
   RNG rng = global_rng;
   
   void parse_optional_args(int argc, const char** argv);
@@ -200,7 +200,6 @@ void print_help(const char* name, std::ostream& out = std::cout) {
   out << "      --json <file>   Write log of one run a json file." << endl;
   out << "      --json-full     Don't encode json file to save size." << endl;
   out << "  -j, --threads <n>   Specify the maximum number of threads (default: " << def.num_threads << ")." << endl;
-  out << "      --cheat-mode    Allow snake to pass through itself (ignore self-collisions)." << endl;
   out << endl;
   list_agents(out);
 }
@@ -244,8 +243,6 @@ void Config::parse_optional_args(int argc, const char** argv) {
       use_color = false;
     } else if (arg == "--json-full") {
       json_compact = false;
-    } else if (arg == "--cheat-mode") {
-      cheat_mode = true;
     } else{
       throw std::invalid_argument("Unknown argument: " + arg);
     }
@@ -420,13 +417,14 @@ void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullpt
 }
 
 template <typename AgentGen>
-Stats play_multiple_threaded(AgentGen make_agent, Config& config) {
+Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_agent = false) {
   std::mutex mutex;
   std::vector<std::thread> threads;
   int remaining = config.num_rounds;
   Stats stats;
+  
   for (int thread = 0; thread < config.num_threads; ++thread) {
-    threads.push_back(std::thread([&,thread](){
+    threads.push_back(std::thread([&,thread,is_cheat_agent](){
       while (true) {
         std::unique_ptr<Agent> agent;
         RNG rng;
@@ -437,7 +435,7 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config) {
           agent = make_agent(config); // potentially uses rng
           rng = config.rng.next_rng();
         }
-        Game game(config.board_size, rng, config.cheat_mode);
+        Game game(config.board_size, rng, is_cheat_agent);
         play(game, *agent, config);
         {
           std::lock_guard<std::mutex> guard(mutex);
@@ -459,11 +457,12 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config) {
 }
 
 template <typename AgentGen>
-Stats play_multiple(AgentGen make_agent, Config& config) {
-  if (config.num_threads > 1) return play_multiple_threaded(make_agent, config);
+Stats play_multiple(AgentGen make_agent, Config& config, bool is_cheat_agent = false) {
+  if (config.num_threads > 1) return play_multiple_threaded(make_agent, config, is_cheat_agent);
   Stats stats;
+  
   for (int i = 0; i < config.num_rounds; ++i) {
-    Game game(config.board_size, config.rng.next_rng(), config.cheat_mode);
+    Game game(config.board_size, config.rng.next_rng(), is_cheat_agent);
     auto agent = make_agent(config);
     play(game, *agent, config);
     stats.add(game);
@@ -592,7 +591,10 @@ int main(int argc, const char** argv) {
       Config config;
       config.parse_optional_args(argc-2, argv+2);
       if (!config.json_file.empty()) {
-        LoggedGame game(config.board_size, config.rng.next_rng(), config.cheat_mode);
+        // Check if we're using the CheatAgent
+        bool is_cheat_agent = (agent.name == "cheat");
+        
+        LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);
         AgentLog agent_log;
         auto a = agent.make(config);
         play(game, *a, config, &agent_log);
@@ -600,7 +602,10 @@ int main(int argc, const char** argv) {
           write_json(config.json_file, agent, game, agent_log, config.json_compact);
         }
       } else {
-        auto stats = play_multiple(agent.make, config);
+        // Check if we're using the CheatAgent
+        bool is_cheat_agent = (agent.name == "cheat");
+        
+        auto stats = play_multiple(agent.make, config, is_cheat_agent);
         std::cout << stats << std::endl;
       }
     }
