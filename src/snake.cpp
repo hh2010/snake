@@ -94,6 +94,8 @@ struct Config {
   std::string json_file;
   bool json_compact = true;
   RNG rng = global_rng;
+  int min_trace_turn = 0;       // Minimum turn to start tracing from
+  int max_trace_turn = INT_MAX; // Maximum turn to trace until
   
   void parse_optional_args(int argc, const char** argv);
 };
@@ -191,8 +193,10 @@ void print_help(const char* name, std::ostream& out = std::cout) {
   out << "  -n, --n <rounds>    Run the given number of rounds (default: " << def.num_rounds << ")." << endl;
   out << "  -s, --size <size>   Size of the (square) board (default: " << def.board_size.w << ")." << endl;
   out << "      --seed <n>      Random seed." << endl;
-  out << "  -T, --trace-all     Print the game state after each move." << endl;
-  out << "  -t, --trace         Print the game state each time the snake eats an apple." << endl;
+  out << "  -T, --trace-all [min max]  Print the game state after each move." << endl;
+  out << "                      When min and max are provided, only print turns between min and max (inclusive)." << endl;
+  out << "  -t, --trace [min max]      Print the game state each time the snake eats an apple." << endl;
+  out << "                      When min and max are provided, only print turns between min and max (inclusive)." << endl;
   out << "      --no-color      Don't use ANSI color codes in trace output" << endl;
   out << "  -q, --quiet         Don't print extra output." << endl;
   out << "      --json <file>   Write log of one run a json file." << endl;
@@ -203,6 +207,13 @@ void print_help(const char* name, std::ostream& out = std::cout) {
 }
 
 void Config::parse_optional_args(int argc, const char** argv) {
+  auto parse_min_max_turns = [&](int& i) {
+    if (i+2 < argc && isdigit(argv[i+1][0]) && isdigit(argv[i+2][0])) {
+      min_trace_turn = std::stoi(argv[++i]);
+      max_trace_turn = std::stoi(argv[++i]);
+    }
+  };
+
   for (int i=0; i<argc; ++i) {
     std::string arg = argv[i];
     if (arg == "-n" || arg == "--n") {
@@ -229,9 +240,11 @@ void Config::parse_optional_args(int argc, const char** argv) {
     } else if (arg == "-t" || arg == "--trace") {
       trace = Trace::eat;
       num_rounds = 1;
+      parse_min_max_turns(i);
     } else if (arg == "-T" || arg == "--trace-all") {
       trace = Trace::all;
       num_rounds = 1;
+      parse_min_max_turns(i);
     } else if (arg == "-q" || arg == "--quiet") {
       quiet = true;
     } else if (arg == "-j" || arg == "--threads" || arg == "--num-threads") {
@@ -407,11 +420,11 @@ enum class Visualize {
 template <typename Game>
 void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullptr) {
   while (!game.done()) {
-    if (config.trace == Trace::all) std::cout << game;
+    if (config.trace == Trace::all && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
     auto event = game.move(agent(game,log));
-    if (event == Game::Event::eat && config.trace == Trace::eat) std::cout << game;
+    if (event == Game::Event::eat && config.trace == Trace::eat && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
   }
-  if (config.trace == Trace::all) std::cout << game;
+  if (config.trace == Trace::all && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
 }
 
 template <typename AgentGen>
