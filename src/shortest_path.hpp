@@ -133,6 +133,8 @@ void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
   // find left/rightmost points
   int min_x = a.x;
   while (min_x > 0) {
+    auto can_move_min_x = can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left);
+    auto is_clear_min_x = !out[Coord{min_x-1,y}];
     if (can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left) && !out[Coord{min_x-1,y}]) {
       min_x--;
     } else {
@@ -141,6 +143,8 @@ void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
   }
   int max_x = a.x;
   while (max_x + 1 < out.w) {
+    auto can_move_max_x = can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right);
+    auto is_clear_max_x = !out[Coord{max_x+1,y}];
     if (can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right) && !out[Coord{max_x+1,y}]) {
       max_x++;
     } else {
@@ -151,9 +155,13 @@ void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
   std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}]+1, true);
   // up/down
   for (int x=min_x; x<=max_x; ++x) {
+    auto can_move_up = can_move(Coord{x,y},Coord{x,y-1},Dir::up);
+    auto is_clear_up = !out[Coord{x,y-1}];
     if (y > 0 && can_move(Coord{x,y},Coord{x,y-1},Dir::up) && !out[Coord{x,y-1}]) {
       flood_fill_go(out, can_move, Coord{x,y-1});
     }
+    auto can_move_down = can_move(Coord{x,y},Coord{x,y+1},Dir::down);
+    auto is_clear_down = !out[Coord{x,y+1}];
     if (y+1 < out.h && can_move(Coord{x,y},Coord{x,y+1},Dir::down) && !out[Coord{x,y+1}]) {
       flood_fill_go(out, can_move, Coord{x,y+1});
     }
