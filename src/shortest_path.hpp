@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include "util.hpp"
 #include <climits>
 #include <queue>
@@ -104,10 +105,10 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
     for (auto d : dirs) {
       Coord b = item.c + d;
       if (!dims.valid(b)) continue;
-      auto edge = edges(item.c,b,d);
-      if (edge == INT_MAX) continue;
+      auto edge = edges(item.c,b,d);  // whats the impact of edge being 1000 instead of 0? or just calculate distance here insetad of rely on bound function
+      if (edge == INT_MAX) continue;  // what happens if all are max?
       int new_dist = out[item.c].dist + edge;
-      if (new_dist < out[b].dist) {
+      if (new_dist < out[b].dist) {  // so it will just pick the first one of U,D,L,R if impact is same
         out[b].dist = new_dist;
         out[b].from = item.c;
         queue.push(Item{b, new_dist+bound(b)});

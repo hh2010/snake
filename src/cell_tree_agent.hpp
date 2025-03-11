@@ -148,7 +148,7 @@ public:
           + (to_same ? (hugs_edge ? edge_penalty_in  : hugs_wall ? wall_penalty_in  : open_penalty_in)
                      : (hugs_edge ? edge_penalty_out : hugs_wall ? wall_penalty_out : open_penalty_out));
       } else {
-        return INT_MAX;
+        return INT_MAX;  // feel like the game should just assert out here
       }
     };
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
@@ -159,7 +159,6 @@ public:
       auto path_copy = path;
       path_copy.push_back(pos);
       log->add(game.turn, AgentLog::Key::plan, std::move(path_copy));
-      logUnreachableMetrics(game, log);
     }
     
     if (pos2 == INVALID) {
@@ -198,7 +197,6 @@ public:
           Grid<bool> unreachable_grid(game.dimensions());
           std::transform(unreachable.reachable.begin(), unreachable.reachable.end(), unreachable_grid.begin(), [](bool r){ return !r; });
           log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
-          
         }
         
         if (detour == DetourStrategy::any) {
@@ -216,6 +214,10 @@ public:
             // move to an unreachable coord first
             pos2 = first_step(dists, pos, unreachable.nearest);
             cached_path.clear();
+            if (log)
+            {
+              logUnreachableMetrics(game, log);
+            }
             return pos2 - pos;
           }
           // failed to find detour
@@ -234,9 +236,9 @@ public:
         }
       }
       
-      if (log) {
-        logUnreachableMetrics(game, log);
-      }
+      // if (log) {
+      //   logUnreachableMetrics(game, log);
+      // }
     }
     
     // use as new cached path

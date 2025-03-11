@@ -394,22 +394,22 @@ function load_game(data) {
       }
       p++;
     }
-  }
-  game.snake_pos = decode_path(game.snake_pos);
-  if (game.cycles) decode_paths(game.cycles, game.snake_pos.length);
-  if (game.plans) decode_paths(game.plans, game.snake_pos.length);
-  if (game.unreachables) decode_grids(game.unreachables, game.snake_pos.length);
-  
-  // Process unreachable_metrics if available
-  if (game.unreachable_metrics) {
-    for (let i=0; i<game.snake_pos.length; ++i) {
-      if (i >= game.unreachable_metrics.length || game.unreachable_metrics[i] === 1) {
-        game.unreachable_metrics[i] = game.unreachable_metrics[i-1]; // same as previous
-      } else if (game.unreachable_metrics[i] === 0) {
-        game.unreachable_metrics[i] = undefined;
+    }
+    game.snake_pos = decode_path(game.snake_pos);
+    if (game.cycles) decode_paths(game.cycles, game.snake_pos.length);
+    if (game.plans) decode_paths(game.plans, game.snake_pos.length);
+    if (game.unreachables) decode_grids(game.unreachables, game.snake_pos.length);
+
+    // Process unreachable_metrics if available
+    if (game.unreachable_metrics) {
+      for (let i=0; i<game.snake_pos.length; ++i) {
+        if (i >= game.unreachable_metrics.length || game.unreachable_metrics[i] === 1) {
+          game.unreachable_metrics[i] = game.unreachable_metrics[i-1]; // same as previous
+        } else if (game.unreachable_metrics[i] === 0) {
+          game.unreachable_metrics[i] = undefined;
+        }
       }
     }
-  }
   
   return game;
 }

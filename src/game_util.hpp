@@ -17,7 +17,9 @@ enum class Lookahead {
 
 GameBase after_moves(GameBase const& game, std::vector<Coord> const& path, Lookahead lookahead) {
   GameBase after = game;
-  assert(is_neighbor(path.back(), game.snake_pos()));
+  if (!is_neighbor(path.back(), game.snake_pos())) {
+    throw std::runtime_error("not a neighbor");
+}
   if (lookahead == Lookahead::one) {
     auto pos_after = path.back();
     after.grid[pos_after] = true;
@@ -64,7 +66,7 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
       out.reachable[a] = true; // count grid cells containing the snake as reachable
     } else if (!out.reachable[a]) {
       out.any = true;
-      if (dists[a].dist < out.dist_to_nearest) {
+      if (dists[a].dist < out.dist_to_nearest) {  // so the first unreachable in the coordinate search is used; we should be going to a safe one
         out.nearest = a;
         out.dist_to_nearest = dists[a].dist;
       }

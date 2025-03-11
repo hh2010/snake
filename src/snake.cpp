@@ -664,7 +664,11 @@ int main(int argc, const char** argv) {
         LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);
         AgentLog agent_log;
         auto a = agent.make(config);
+        try {
         play(game, *a, config, &agent_log);
+        } catch (const std::exception& e) {
+          std::cerr << "Exception: " << e.what() << std::endl;
+        }
         if (!config.json_file.empty()) {
           write_json(config.json_file, agent, game, agent_log, config.json_compact);
         }

@@ -26,8 +26,18 @@ struct AgentLog {
   
   template <typename T>
   void add(int turn, Key key, T&& value) {
-    while ((int)logs[key].size() < turn) {
-      logs[key].emplace_back(NoEntry{});
+    if (key == unreachable_metrics) {
+      while ((int)logs[key].size() < turn) {
+        if (logs[key].empty()) {
+          logs[key].emplace_back(NoEntry{});
+        } else {
+          logs[key].emplace_back(logs[key].back());
+        }
+      }
+    } else {
+      while ((int)logs[key].size() < turn) {
+        logs[key].emplace_back(NoEntry{});
+      }
     }
     logs[key].emplace_back(std::forward<T>(value));
   }
