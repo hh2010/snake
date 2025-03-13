@@ -18,11 +18,8 @@ using Snake = RingBuffer<Coord>;
 // State of a game of snake, without tracking anything else
 class GameBase {
 public:
-  // Grid: true = contains part of the snake, false = empty
   Grid<bool> grid;
-  // Coordinates that contain the snake, front = head of snake, back = tail of snake
   Snake snake;
-  // Coordinate of the next goal/apple
   Coord apple_pos;
   
   GameBase(CoordRange range)
@@ -44,38 +41,34 @@ public:
   }
 };
 
-// An actual game of snake
 class Game : public GameBase {
-  RNG rng;
-  enum class State { playing, win, loss } state = State::playing;
-  
 public:
-  enum class Event { none, move, eat, lose };
-  
-  std::shared_ptr<FloodFillDebug> flood_fill_debug;
-  bool ignore_snake_collisions;
   int turn = 0;
-
-  Game(CoordRange dims, RNG const& rng, bool ignore_snake_collisions = false) 
-    : GameBase(dims)
-    , rng(rng)
-    , ignore_snake_collisions(ignore_snake_collisions) 
-  {
-    // Initialize snake
-    Coord start = {dims.w/4, dims.h/2};
-    snake.push_back(start);
-    grid[start] = true;
-    apple_pos = random_free_coord();
-  }
-
-  bool win() const { return state == State::win; }
-  bool loss() const { return state == State::loss; }
-  bool done() const { return state != State::playing; }
+  enum class State {
+    playing, loss, win
+  } state = State::playing;
+  enum class Event {
+    none, move, eat, lose
+  };
   
-  Coord random_free_coord();
+  // Flag to ignore snake self-collisions (for cheat agent)
+  bool ignore_snake_collisions = false;
+  
+  // Added for flood fill debugging
+  std::shared_ptr<FloodFillDebug> flood_fill_debug;
+  
+  inline bool win()  const { return state == State::win; }
+  inline bool loss() const { return state == State::loss; }
+  inline bool done() const { return state != State::playing; }
+  
+  Game(CoordRange dimensions, RNG const& rng = global_rng.next_rng(), bool ignore_snake_collisions = false);
+  Game(Game const&) = delete;
   Event move(Dir dir);
 
 private:
+  RNG rng;
+  
+  Coord random_free_coord();
   int max_turns() const { return grid.size() * grid.size(); }
 };
 
@@ -86,6 +79,29 @@ std::ostream& operator << (std::ostream& out, Game const& game);
 //------------------------------------------------------------------------------
 
 #include <algorithm>
+
+Game::Game(CoordRange dims, RNG const& base_rng, bool ignore_snake_collisions)
+  : GameBase(dims)
+  , rng(base_rng)
+  , ignore_snake_collisions(ignore_snake_collisions)
+{
+  Coord start = dims.random(rng);
+  snake.push_front(start);
+  grid[start] = true;
+  apple_pos = random_free_coord();
+}
+
+Coord Game::random_free_coord() {
+  int n = grid.size() - snake.size();
+  int pos = rng.random(n);
+  for (auto c : grid.coords()) {
+    if (!grid[c]) {
+      if (pos == 0) return c;
+      else pos--;
+    }
+  }
+  throw std::runtime_error("no free coord");
+}
 
 Game::Event Game::move(Dir dir) {
   if (state != State::playing) return Event::none;
@@ -119,18 +135,6 @@ Game::Event Game::move(Dir dir) {
     snake.pop_back();
     return Event::move;
   }
-}
-
-Coord Game::random_free_coord() {
-  int n = grid.size() - snake.size();
-  int pos = rng.random(n);
-  for (auto c : grid.coords()) {
-    if (!grid[c]) {
-      if (pos == 0) return c;
-      else pos--;
-    }
-  }
-  throw std::runtime_error("no free coord");
 }
 
 //------------------------------------------------------------------------------
