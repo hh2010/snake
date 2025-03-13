@@ -135,6 +135,8 @@ struct Config {
   RNG rng = global_rng;
   int min_trace_turn = 0;       // Minimum turn to start tracing from
   int max_trace_turn = INT_MAX; // Maximum turn to trace until
+  std::string flood_fill_json;  // Path to output flood fill debug JSON
+  int flood_fill_turn = -1;     // Turn number to start logging flood fill (-1 = disabled)
   
   void parse_optional_args(int argc, const char** argv);
 };
@@ -296,7 +298,11 @@ void Config::parse_optional_args(int argc, const char** argv) {
       use_color = false;
     } else if (arg == "--json-full") {
       json_compact = false;
-    } else{
+    } else if (arg == "--flood-fill-json") {
+      if (i+2 >= argc) throw std::invalid_argument("Missing arguments to " + arg);
+      flood_fill_json = argv[++i];
+      flood_fill_turn = std::stoi(argv[++i]);
+    } else {
       throw std::invalid_argument("Unknown argument: " + arg);
     }
   }
@@ -440,30 +446,65 @@ void write_json(std::ostream& out, std::vector<AgentLog::LogEntry> const& xs, bo
   out << "]";
 }
 
-void write_json(std::ostream& out, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact = true) {
-  out << "{" << std::endl;
-  out << "  \"agent\": \"" << agent.name << "\"," << std::endl;
-  out << "  \"agent_description\": \"" << agent.description << "\"," << std::endl;
-  out << "  \"size\": "; write_json(out, game.dimensions()); out << "," << std::endl;
-  out << "  \"snake_pos\": "; write_json_path(out, game.log.snake_pos, compact); out << "," << std::endl;
-  if (!compact) {
-    out << "  \"snake_size\": "; write_json(out, game.log.snake_size); out << "," << std::endl;
-  }
-  out << "  \"apple_pos\": "; write_json(out, game.log.apple_pos); out << "," << std::endl;
-  out << "  \"eat_turns\": "; write_json(out, game.log.eat_turns);
-  for (int i = 0; i < AgentLog::MAX_KEY; ++i) {
-    if (!agent_log.logs[i].empty()) {
-      out << "," << std::endl;
-      out << "  \"" << AgentLog::key_name((AgentLog::Key)i) << "\": ";
-      write_json(out, agent_log.logs[i], compact);
+void write_json(std::ostream& out, FloodFillDebug const& debug) {
+  try {
+    out << "{" << std::endl;
+    out << "  \"size\": "; write_json(out, debug.size); out << "," << std::endl;
+    out << "  \"turn\": " << debug.turn << "," << std::endl;
+    out << "  \"snake_pos\": "; write_json(out, debug.snake_pos); out << "," << std::endl;
+    out << "  \"snake_size\": " << debug.snake_size << "," << std::endl;
+    out << "  \"apple_pos\": "; write_json(out, debug.apple_pos); out << "," << std::endl;
+    out << "  \"flood_fill_debug\": {" << std::endl;
+    out << "    \"start_coord\": "; write_json(out, debug.start_coord); out << "," << std::endl;
+    out << "    \"path_to_apple\": "; write_json(out, debug.path_to_apple); out << "," << std::endl;
+    out << "    \"fill_states\": [" << std::endl;
+    for (size_t i = 0; i < debug.fill_states.size(); ++i) {
+      out << "      ";
+      write_json_grid(out, debug.fill_states[i], true);
+      if (i < debug.fill_states.size() - 1) out << ",";
+      out << std::endl;
     }
+    out << "    ]" << std::endl;
+    out << "  }" << std::endl;
+    out << "}" << std::endl;
+  } catch (const std::exception& e) {
+    throw std::runtime_error("Failed to write JSON: " + std::string(e.what()));
   }
-   out << std::endl << "}" << std::endl;
 }
 
-void write_json(std::string const& filename, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact = true) {
+void write_json(std::string const& filename, FloodFillDebug const& debug) {
   std::ofstream out(filename);
-  write_json(out, agent, game, agent_log, compact);
+  if (!out.is_open()) {
+    throw std::runtime_error("Could not open file for writing: " + filename);
+  }
+  
+  write_json(out, debug);
+  
+  if (out.fail()) {
+    out.close();
+    throw std::runtime_error("Failed to write to file: " + filename);
+  }
+  
+  out.flush();
+  out.close();
+}
+
+void write_json(std::string const& filename, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact) {
+  std::ofstream out(filename);
+  out << "{\n";
+  out << "  \"agent\": \"" << agent.name << "\",\n";
+  out << "  \"snake_pos\": ";
+  write_json(out, game.log.snake_pos);
+  out << ",\n";
+  out << "  \"snake_size\": ";
+  write_json(out, game.log.snake_size);
+  out << ",\n";
+  out << "  \"apple_pos\": ";
+  write_json(out, game.log.apple_pos);
+  out << ",\n";
+  out << "  \"eat_turns\": ";
+  write_json(out, game.log.eat_turns);
+  out << "\n}\n";
 }
 
 //------------------------------------------------------------------------------
@@ -478,6 +519,54 @@ template <typename Game>
 void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullptr) {
   while (!game.done()) {
     if (config.trace == Trace::all && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
+    
+    // Enable flood fill debugging if we're at the target turn
+    if (!config.flood_fill_json.empty() && game.turn == config.flood_fill_turn) {
+      game.flood_fill_debug = std::make_shared<FloodFillDebug>();
+      auto& debug = *game.flood_fill_debug;
+      debug.turn = game.turn;
+      debug.size = game.dimensions();
+      debug.snake_pos.clear();
+      for (auto it = game.snake.begin(); it != game.snake.end(); ++it) {
+        debug.snake_pos.push_back(*it);
+      }
+      debug.snake_size = game.snake.size();
+      debug.apple_pos = game.apple_pos;
+      debug.start_coord = game.snake_pos();
+      FloodFillDebug::active_debug = &debug;
+      
+      // Get the path to the apple before executing the next move
+      // This ensures we have a valid path in the debug data
+      try {
+        // Calculate path from snake head to apple using the existing grid
+        auto start = game.snake_pos();
+        auto grid = game.grid;
+        
+        // Use the shortest_path algorithm to find a path to the apple
+        auto path_grid = shortest_path(grid, start, game.apple_pos);
+        debug.path_to_apple = read_path(path_grid, start, game.apple_pos);
+      } 
+      catch (const std::exception& e) {
+        std::cerr << "Error calculating path to apple: " << e.what() << std::endl;
+        // If path calculation fails, create an empty path rather than crashing
+        debug.path_to_apple.clear();
+      }
+      
+      // Get next move and execute it - this will trigger flood fill logging
+      Dir next_move = agent(game, log);
+      auto event = game.move(next_move);
+      
+      // Write debug info and clean up
+      FloodFillDebug::active_debug = nullptr;
+      try {
+        write_json(config.flood_fill_json, debug);
+        std::cout << "Wrote flood fill debug info to " << config.flood_fill_json << std::endl;
+      } catch (const std::exception& e) {
+        std::cerr << "Error writing flood fill debug info: " << e.what() << std::endl;
+      }
+      return;
+    }
+    
     auto event = game.move(agent(game,log));
     if (event == Game::Event::eat && config.trace == Trace::eat && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
   }
@@ -601,7 +690,7 @@ double score(Stats const& stats) {
   return mean(stats.turns) + 1e10 * (1 - mean(stats.wins));
 }
 
-void optimize_agent(ParameterizedAgentFactory& agent, Config& config, std::ostream& out = std::cout) {
+void optimize_agent(ParameterizedAgentFactory& agent, Config& config, std::ostream& out) {
   using namespace std;
   int num_runs = 1000;
   int step_size = 100;
@@ -631,10 +720,6 @@ void optimize_agent(ParameterizedAgentFactory& agent, Config& config, std::ostre
   }
 }
 
-//------------------------------------------------------------------------------
-// Main
-//------------------------------------------------------------------------------
-
 int main(int argc, const char** argv) {
   std::string mode = argc >= 2 ? argv[1] : "help";
   
@@ -652,7 +737,7 @@ int main(int argc, const char** argv) {
       Config config;
       config.parse_optional_args(argc-2, argv+2);
       ParameterizedCellTreeAgent agent;
-      optimize_agent(agent, config);
+      optimize_agent(agent, config, std::cout);
     } else {
       auto agent = find_agent(mode);
       Config config;

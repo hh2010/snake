@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Snake Flood Fill Debug</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <div id="root">
+      <div id="anim">
+        <canvas id="canvas" width="802" height="802"></canvas>
+      </div>
+      <div id="info">
+        <div id="turn"></div>
+        <div id="size"></div>
+        <div id="step">Current Fill Step: <span id="fill-step">0</span></div>
+        <div style="margin-top:2em;">
+          Use <button id="btn_prev_step">←</button>/<button id="btn_next_step">→</button> keys to step through flood fill states.<br>
+          Use <button id="btn_speed_down">↓</button>/<button id="btn_speed_up">↑</button> keys to adjust step size.<br>
+        </div>
+        <div id="legend">
+          <canvas id="legend-snake" width="40" height="20">Green</canvas> = snake<br>
+          <canvas id="legend-apple" width="40" height="20">Red</canvas> = apple<br>
+          <canvas id="legend-path" width="40" height="20">Blue</canvas> = path to apple<br>  
+          <canvas id="legend-fill" width="40" height="20">Yellow</canvas> = filled cells<br>
+        </div>
+      </div>
+    </div>
+    <script src="flood_fill_debug.js"></script>
+  </body>
+</html>

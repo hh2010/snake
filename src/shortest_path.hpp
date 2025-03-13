@@ -1,10 +1,6 @@
 #pragma once
-
-#include <cassert>
 #include "util.hpp"
-#include <climits>
 #include <queue>
-#include <vector>
 
 //------------------------------------------------------------------------------
 // Shortest paths by breath first search
@@ -70,14 +66,23 @@ std::vector<Coord> read_path(Grid<Step> const& paths, Coord from, Coord to) {
   return steps;
 }
 
+// Add operator for Grid<string>
+std::ostream& operator << (std::ostream& out, Grid<std::string> const& grid) {
+  for (int y = 0; y < grid.h; ++y) {
+    for (int x = 0; x < grid.w; ++x) {
+      out << grid[{x,y}];
+    }
+    out << std::endl;
+  }
+  return out;
+}
+
 std::ostream& operator << (std::ostream& out, Grid<Step> const& paths) {
   Grid<std::string> vis(paths.dimensions());
-  std::transform(paths.begin(), paths.end(), vis.begin(), [](Step s) -> std::string {
-    if (s.dist < 10) return std::to_string(s.dist);
-    if (s.dist == INT_MAX) return "-";
-    else return "9";
+  std::transform(paths.begin(), paths.end(), vis.begin(), [](Step x) {
+    return x.dist == INT_MAX ? "." : "#";
   });
-  return std::cout << vis;
+  return out << vis;
 }
 
 //------------------------------------------------------------------------------
@@ -122,50 +127,71 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
 // Flood fill
 //------------------------------------------------------------------------------
 
-#include <assert.h>
+// Flood fill debug data structure
+struct FloodFillDebug {
+    int turn = -1;
+    CoordRange size;
+    std::vector<Coord> snake_pos;
+    int snake_size;
+    Coord apple_pos;
+    Coord start_coord;
+    std::vector<Coord> path_to_apple;
+    std::vector<Grid<bool>> fill_states;
+
+    static FloodFillDebug* active_debug;
+
+    FloodFillDebug() {
+        active_debug = nullptr;
+    }
+    ~FloodFillDebug() {
+        if (active_debug == this) {
+            active_debug = nullptr;
+        }
+    }
+};
+
+FloodFillDebug* FloodFillDebug::active_debug = nullptr;
 
 template <typename CanMove>
 void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
-  if (!out.valid(a)) {
-    std::cout << "ABOUT TO BREAK THINGS " << a << std::endl;
-  }
-  int y = a.y;
-  // find left/rightmost points
-  int min_x = a.x;
-  while (min_x > 0) {
-    auto can_move_min_x = can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left);
-    auto is_clear_min_x = !out[Coord{min_x-1,y}];
-    if (can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left) && !out[Coord{min_x-1,y}]) {
-      min_x--;
-    } else {
-      break;
+    if (!out.valid(a)) {
+        std::cout << "ABOUT TO BREAK THINGS " << a << std::endl;
     }
-  }
-  int max_x = a.x;
-  while (max_x + 1 < out.w) {
-    auto can_move_max_x = can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right);
-    auto is_clear_max_x = !out[Coord{max_x+1,y}];
-    if (can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right) && !out[Coord{max_x+1,y}]) {
-      max_x++;
-    } else {
-      break;
+    int y = a.y;
+    // find left/rightmost points
+    int min_x = a.x;
+    while (min_x > 0) {
+        if (can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left) && !out[Coord{min_x-1,y}]) {
+            min_x--;
+        } else {
+            break;
+        }
     }
-  }
-  // mark
-  std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}]+1, true);
-  // up/down
-  for (int x=min_x; x<=max_x; ++x) {
-    auto can_move_up = can_move(Coord{x,y},Coord{x,y-1},Dir::up);
-    auto is_clear_up = !out[Coord{x,y-1}];
-    if (y > 0 && can_move(Coord{x,y},Coord{x,y-1},Dir::up) && !out[Coord{x,y-1}]) {
-      flood_fill_go(out, can_move, Coord{x,y-1});
+    int max_x = a.x;
+    while (max_x + 1 < out.w) {
+        if (can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right) && !out[Coord{max_x+1,y}]) {
+            max_x++;
+        } else {
+            break;
+        }
     }
-    auto can_move_down = can_move(Coord{x,y},Coord{x,y+1},Dir::down);
-    auto is_clear_down = !out[Coord{x,y+1}];
-    if (y+1 < out.h && can_move(Coord{x,y},Coord{x,y+1},Dir::down) && !out[Coord{x,y+1}]) {
-      flood_fill_go(out, can_move, Coord{x,y+1});
+    // mark
+    std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}]+1, true);
+    
+    // Capture state after fill if debugging is active
+    if (FloodFillDebug::active_debug) {
+        FloodFillDebug::active_debug->fill_states.push_back(out);
     }
-  }
+
+    // up/down
+    for (int x=min_x; x<=max_x; ++x) {
+        if (y > 0 && can_move(Coord{x,y},Coord{x,y-1},Dir::up) && !out[Coord{x,y-1}]) {
+            flood_fill_go(out, can_move, Coord{x,y-1});
+        }
+        if (y+1 < out.h && can_move(Coord{x,y},Coord{x,y+1},Dir::down) && !out[Coord{x,y+1}]) {
+            flood_fill_go(out, can_move, Coord{x,y+1});
+        }
+    }
 }
 
 template <typename CanMove>
