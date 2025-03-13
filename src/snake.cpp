@@ -489,22 +489,33 @@ void write_json(std::string const& filename, FloodFillDebug const& debug) {
   out.close();
 }
 
-void write_json(std::string const& filename, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact) {
+void write_json(std::ostream& out, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact = true) {
+  out << "{" << std::endl;
+  out << "  \"agent\": \"" << agent.name << "\"," << std::endl;
+  out << "  \"agent_description\": \"" << agent.description << "\"," << std::endl;
+  out << "  \"size\": "; write_json(out, game.dimensions()); out << "," << std::endl;
+  out << "  \"snake_pos\": "; write_json_path(out, game.log.snake_pos, compact); out << "," << std::endl;
+  if (!compact) {
+    out << "  \"snake_size\": "; write_json(out, game.log.snake_size); out << "," << std::endl;
+  }
+  out << "  \"apple_pos\": "; write_json(out, game.log.apple_pos); out << "," << std::endl;
+  out << "  \"eat_turns\": "; write_json(out, game.log.eat_turns);
+  for (int i = 0; i < AgentLog::MAX_KEY; ++i) {
+    if (!agent_log.logs[i].empty()) {
+      out << "," << std::endl;
+      out << "  \"" << AgentLog::key_name((AgentLog::Key)i) << "\": ";
+      write_json(out, agent_log.logs[i], compact);
+    }
+  }
+  out << std::endl << "}" << std::endl;
+}
+
+void write_json(std::string const& filename, AgentFactory const& agent, LoggedGame const& game, AgentLog const& agent_log, bool compact = true) {
   std::ofstream out(filename);
-  out << "{\n";
-  out << "  \"agent\": \"" << agent.name << "\",\n";
-  out << "  \"snake_pos\": ";
-  write_json(out, game.log.snake_pos);
-  out << ",\n";
-  out << "  \"snake_size\": ";
-  write_json(out, game.log.snake_size);
-  out << ",\n";
-  out << "  \"apple_pos\": ";
-  write_json(out, game.log.apple_pos);
-  out << ",\n";
-  out << "  \"eat_turns\": ";
-  write_json(out, game.log.eat_turns);
-  out << "\n}\n";
+  if (!out.is_open()) {
+    throw std::runtime_error("Could not open file for writing: " + filename);
+  }
+  write_json(out, agent, game, agent_log, compact);
 }
 
 //------------------------------------------------------------------------------
