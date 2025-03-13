@@ -235,10 +235,6 @@ public:
           std::cout << "Unreachable grid points (will) exist, but no alternative moves or cached path" << std::endl;
         }
       }
-      
-      // if (log) {
-      //   logUnreachableMetrics(game, log);
-      // }
     }
     
     // use as new cached path

@@ -526,6 +526,52 @@ enum class Visualize {
   no, eat, all
 };
 
+// Helper function to set up and execute flood fill debugging
+void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::string& output_file) {
+  game.flood_fill_debug = std::make_shared<FloodFillDebug>();
+  auto& debug = *game.flood_fill_debug;
+  debug.turn = game.turn;
+  debug.size = game.dimensions();
+  debug.snake_pos.clear();
+  for (auto it = game.snake.begin(); it != game.snake.end(); ++it) {
+    debug.snake_pos.push_back(*it);
+  }
+  debug.snake_size = game.snake.size();
+  debug.apple_pos = game.apple_pos;
+  debug.start_coord = game.snake_pos();
+  FloodFillDebug::active_debug = &debug;
+  
+  // Get the path to the apple before executing the next move
+  // This ensures we have a valid path in the debug data
+  try {
+    // Calculate path from snake head to apple using the existing grid
+    auto start = game.snake_pos();
+    auto grid = game.grid;
+    
+    // Use the shortest_path algorithm to find a path to the apple
+    auto path_grid = shortest_path(grid, start, game.apple_pos);
+    debug.path_to_apple = read_path(path_grid, start, game.apple_pos);
+  } 
+  catch (const std::exception& e) {
+    std::cerr << "Error calculating path to apple: " << e.what() << std::endl;
+    // If path calculation fails, create an empty path rather than crashing
+    debug.path_to_apple.clear();
+  }
+  
+  // Get next move and execute it - this will trigger flood fill logging
+  Dir next_move = agent(game, log);
+  auto event = game.move(next_move);
+  
+  // Write debug info and clean up
+  FloodFillDebug::active_debug = nullptr;
+  try {
+    write_json(output_file, debug);
+    std::cout << "Wrote flood fill debug info to " << output_file << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "Error writing flood fill debug info: " << e.what() << std::endl;
+  }
+}
+
 template <typename Game>
 void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullptr) {
   while (!game.done()) {
@@ -533,48 +579,7 @@ void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullpt
     
     // Enable flood fill debugging if we're at the target turn
     if (!config.flood_fill_json.empty() && game.turn == config.flood_fill_turn) {
-      game.flood_fill_debug = std::make_shared<FloodFillDebug>();
-      auto& debug = *game.flood_fill_debug;
-      debug.turn = game.turn;
-      debug.size = game.dimensions();
-      debug.snake_pos.clear();
-      for (auto it = game.snake.begin(); it != game.snake.end(); ++it) {
-        debug.snake_pos.push_back(*it);
-      }
-      debug.snake_size = game.snake.size();
-      debug.apple_pos = game.apple_pos;
-      debug.start_coord = game.snake_pos();
-      FloodFillDebug::active_debug = &debug;
-      
-      // Get the path to the apple before executing the next move
-      // This ensures we have a valid path in the debug data
-      try {
-        // Calculate path from snake head to apple using the existing grid
-        auto start = game.snake_pos();
-        auto grid = game.grid;
-        
-        // Use the shortest_path algorithm to find a path to the apple
-        auto path_grid = shortest_path(grid, start, game.apple_pos);
-        debug.path_to_apple = read_path(path_grid, start, game.apple_pos);
-      } 
-      catch (const std::exception& e) {
-        std::cerr << "Error calculating path to apple: " << e.what() << std::endl;
-        // If path calculation fails, create an empty path rather than crashing
-        debug.path_to_apple.clear();
-      }
-      
-      // Get next move and execute it - this will trigger flood fill logging
-      Dir next_move = agent(game, log);
-      auto event = game.move(next_move);
-      
-      // Write debug info and clean up
-      FloodFillDebug::active_debug = nullptr;
-      try {
-        write_json(config.flood_fill_json, debug);
-        std::cout << "Wrote flood fill debug info to " << config.flood_fill_json << std::endl;
-      } catch (const std::exception& e) {
-        std::cerr << "Error writing flood fill debug info: " << e.what() << std::endl;
-      }
+      setupFloodFillDebug(game, agent, log, config.flood_fill_json);
       return;
     }
     
