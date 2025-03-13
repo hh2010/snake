@@ -127,7 +127,7 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
 // Flood fill
 //------------------------------------------------------------------------------
 
-// Flood fill debug data structure
+// Flood fill debug structure and functions
 struct FloodFillDebug {
     int turn = -1;
     CoordRange size;
@@ -148,47 +148,82 @@ struct FloodFillDebug {
             active_debug = nullptr;
         }
     }
+
+    void capture_state(const Grid<bool>& state) {
+        if (active_debug == this) {
+            fill_states.push_back(state);
+        }
+    }
+
+    void initialize_from_game_state(const CoordRange& dims, const std::vector<Coord>& snake, 
+                                  int snakeSize, const Coord& applePos, const Coord& startCoord, int gameTurn) {
+        turn = gameTurn;
+        size = dims;
+        snake_pos = snake;
+        snake_size = snakeSize;
+        apple_pos = applePos;
+        start_coord = startCoord;
+        fill_states.clear();
+    }
+
+    bool calculate_path_to_apple(const Grid<bool>& gameGrid) {
+        try {
+            auto path_grid = shortest_path(gameGrid, start_coord, apple_pos);
+            path_to_apple = read_path(path_grid, start_coord, apple_pos);
+            return true;
+        } catch (const std::exception&) {
+            path_to_apple.clear();
+            return false;
+        }
+    }
 };
 
 FloodFillDebug* FloodFillDebug::active_debug = nullptr;
 
+// Flood fill implementation
 template <typename CanMove>
 void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
     if (!out.valid(a)) {
-        std::cout << "ABOUT TO BREAK THINGS " << a << std::endl;
-    }
-    int y = a.y;
-    // find left/rightmost points
-    int min_x = a.x;
-    while (min_x > 0) {
-        if (can_move(Coord{min_x,y},Coord{min_x-1,y},Dir::left) && !out[Coord{min_x-1,y}]) {
-            min_x--;
-        } else {
-            break;
-        }
-    }
-    int max_x = a.x;
-    while (max_x + 1 < out.w) {
-        if (can_move(Coord{max_x,y},Coord{max_x+1,y},Dir::right) && !out[Coord{max_x+1,y}]) {
-            max_x++;
-        } else {
-            break;
-        }
-    }
-    // mark
-    std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}]+1, true);
-    
-    // Capture state after fill if debugging is active
-    if (FloodFillDebug::active_debug) {
-        FloodFillDebug::active_debug->fill_states.push_back(out);
+        std::cout << "Invalid coordinate: " << a << std::endl;
+        return;
     }
 
-    // up/down
-    for (int x=min_x; x<=max_x; ++x) {
-        if (y > 0 && can_move(Coord{x,y},Coord{x,y-1},Dir::up) && !out[Coord{x,y-1}]) {
+    auto fill_horizontal_line = [&](int y, int& min_x, int& max_x) {
+        // Find leftmost point
+        min_x = a.x;
+        while (min_x > 0 && can_move(Coord{min_x,y}, Coord{min_x-1,y}, Dir::left) 
+               && !out[Coord{min_x-1,y}]) {
+            min_x--;
+        }
+
+        // Find rightmost point
+        max_x = a.x;
+        while (max_x + 1 < out.w && can_move(Coord{max_x,y}, Coord{max_x+1,y}, Dir::right) 
+               && !out[Coord{max_x+1,y}]) {
+            max_x++;
+        }
+
+        // Mark the line
+        std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}] + 1, true);
+    };
+
+    int y = a.y;
+    int min_x, max_x;
+    
+    // Fill horizontal line and capture state
+    fill_horizontal_line(y, min_x, max_x);
+    if (FloodFillDebug::active_debug) {
+        FloodFillDebug::active_debug->capture_state(out);
+    }
+
+    // Recursively fill connected lines above and below
+    for (int x = min_x; x <= max_x; ++x) {
+        if (y > 0 && can_move(Coord{x,y}, Coord{x,y-1}, Dir::up) 
+            && !out[Coord{x,y-1}]) {
             flood_fill_go(out, can_move, Coord{x,y-1});
         }
-        if (y+1 < out.h && can_move(Coord{x,y},Coord{x,y+1},Dir::down) && !out[Coord{x,y+1}]) {
+        if (y+1 < out.h && can_move(Coord{x,y}, Coord{x,y+1}, Dir::down) 
+            && !out[Coord{x,y+1}]) {
             flood_fill_go(out, can_move, Coord{x,y+1});
         }
     }

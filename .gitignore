@@ -3,3 +3,4 @@ ideas/
 *.json
 *.exe
 .vscode/
+*.log

@@ -70,7 +70,17 @@ function render(game, currentStep) {
     ctx.stroke();
   }
 
-  // draw flood fill state
+  // Fill all cells with yellow initially (unreachable)
+  ctx.beginPath();
+  for (let y = 0; y < game.size[1]; y++) {
+    for (let x = 0; x < game.size[0]; x++) {
+      ctx.rect(x*scale+1, y*scale+1, scale-2, scale-2);
+    }
+  }
+  ctx.fillStyle = "#ff03"; // Same yellow as main.js
+  ctx.fill();
+
+  // draw flood fill state (grey cells for reachable area)
   if (game.flood_fill_debug.fill_states[currentStep]) {
     ctx.beginPath();
     let grid = game.flood_fill_debug.fill_states[currentStep];
@@ -81,11 +91,11 @@ function render(game, currentStep) {
         }
       }
     }
-    ctx.fillStyle = dark ? "#ff03" : "#ff05";
+    ctx.fillStyle = dark ? "#222" : "#fff"; // Same grey as main.js grid cells
     ctx.fill();
   }
 
-  // draw path to apple - only if the path exists and has elements
+  // draw path to apple
   if (game.flood_fill_debug.path_to_apple && game.flood_fill_debug.path_to_apple.length > 0) {
     ctx.beginPath();
     let path = game.flood_fill_debug.path_to_apple;
@@ -98,19 +108,33 @@ function render(game, currentStep) {
     ctx.stroke();
   }
 
-  // draw snake
-  {
+  // draw snake body
+  if (game.snake_pos.length > 1) {
     ctx.beginPath();
     let pos = game.snake_pos;
-    ctx.moveTo((pos[0][0]+0.5)*scale, (pos[0][1]+0.5)*scale);
-    for (let i=1; i<pos.length; ++i) {
+    // Start from first non-head position and connect the body parts
+    ctx.moveTo((pos[1][0]+0.5)*scale, (pos[1][1]+0.5)*scale);
+    for (let i=2; i<pos.length; ++i) {
       ctx.lineTo((pos[i][0]+0.5)*scale, (pos[i][1]+0.5)*scale);
     }
+    // Only connect the head to the cell before it
+    ctx.moveTo((pos[1][0]+0.5)*scale, (pos[1][1]+0.5)*scale);
+    ctx.lineTo((pos[0][0]+0.5)*scale, (pos[0][1]+0.5)*scale);
+    
     ctx.strokeStyle = dark ? "#0b0" : "#0a0";
     ctx.lineWidth = 0.4 * scale;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.stroke();
+  }
+
+  // draw snake head as circle
+  {
+    let head = game.snake_pos[0];
+    ctx.beginPath();
+    ctx.arc((head[0]+0.5)*scale, (head[1]+0.5)*scale, 0.4*scale, 0, 2 * Math.PI);
+    ctx.fillStyle = dark ? "#0b0" : "#0a0";
+    ctx.fill();
   }
 
   // draw apple
