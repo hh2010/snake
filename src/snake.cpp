@@ -447,7 +447,7 @@ void write_json(std::ostream& out, std::vector<AgentLog::LogEntry> const& xs, bo
   out << "]";
 }
 
-void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& agent_log, bool compact) {
+void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& agent_log) {
   try {
     out << "{" << std::endl;
     out << "  \"size\": "; write_json(out, debug.size); out << "," << std::endl;
@@ -462,7 +462,7 @@ void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& 
     if (!agent_log.logs[AgentLog::Key::plan].empty()) {
       out << "," << std::endl;  // Add comma only if there's more content
       out << "    \"" << AgentLog::key_name((AgentLog::Key)AgentLog::Key::plan) << "\": ";
-      write_json(out, agent_log.logs[AgentLog::Key::plan], compact);
+      write_json(out, std::vector{agent_log.logs[AgentLog::Key::plan].back()}, false);
     }
 
     // Fill states output (only add comma if we're going to write fill states)
@@ -484,13 +484,13 @@ void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& 
   }
 }
 
-void write_json(std::string const& filename, FloodFillDebug const& debug, AgentLog const& agent_log, bool compact) {
+void write_json(std::string const& filename, FloodFillDebug const& debug, AgentLog const& agent_log) {
   std::ofstream out(filename);
   if (!out.is_open()) {
     throw std::runtime_error("Could not open file for writing: " + filename);
   }
   
-  write_json(out, debug, agent_log, compact);
+  write_json(out, debug, agent_log);
   
   if (out.fail()) {
     out.close();
@@ -567,7 +567,7 @@ void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::str
   // Write debug info and clean up
   FloodFillDebug::active_debug = nullptr;
   try {
-    write_json(output_file, debug, *log, compact);
+    write_json(output_file, debug, *log);
     std::cout << "Wrote flood fill debug info to " << output_file << std::endl;
   } catch (const std::exception& e) {
     std::cerr << "Error writing flood fill debug info: " << e.what() << std::endl;
