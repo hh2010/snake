@@ -96,9 +96,9 @@ function render(game, currentStep) {
   }
 
   // draw path to apple
-  if (game.flood_fill_debug.path_to_apple && game.flood_fill_debug.path_to_apple.length > 0) {
+  if (game.flood_fill_debug.plans && game.flood_fill_debug.plans.length > 0) {
     ctx.beginPath();
-    let path = game.flood_fill_debug.path_to_apple;
+    let path = game.flood_fill_debug.plans;
     ctx.moveTo((path[0][0]+0.5)*scale, (path[0][1]+0.5)*scale);
     for (let i=1; i<path.length; ++i) {
       ctx.lineTo((path[i][0]+0.5)*scale, (path[i][1]+0.5)*scale);

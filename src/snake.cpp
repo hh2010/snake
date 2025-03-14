@@ -302,6 +302,7 @@ void Config::parse_optional_args(int argc, const char** argv) {
       if (i+2 >= argc) throw std::invalid_argument("Missing arguments to " + arg);
       flood_fill_json = argv[++i];
       flood_fill_turn = std::stoi(argv[++i]);
+      // add some restrictions on this. cannot be used with json_file, can only be used for cell
     } else {
       throw std::invalid_argument("Unknown argument: " + arg);
     }
@@ -446,7 +447,7 @@ void write_json(std::ostream& out, std::vector<AgentLog::LogEntry> const& xs, bo
   out << "]";
 }
 
-void write_json(std::ostream& out, FloodFillDebug const& debug) {
+void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& agent_log, bool compact) {
   try {
     out << "{" << std::endl;
     out << "  \"size\": "; write_json(out, debug.size); out << "," << std::endl;
@@ -455,16 +456,27 @@ void write_json(std::ostream& out, FloodFillDebug const& debug) {
     out << "  \"snake_size\": " << debug.snake_size << "," << std::endl;
     out << "  \"apple_pos\": "; write_json(out, debug.apple_pos); out << "," << std::endl;
     out << "  \"flood_fill_debug\": {" << std::endl;
-    out << "    \"start_coord\": "; write_json(out, debug.start_coord); out << "," << std::endl;
-    out << "    \"path_to_apple\": "; write_json(out, debug.path_to_apple); out << "," << std::endl;
-    out << "    \"fill_states\": [" << std::endl;
-    for (size_t i = 0; i < debug.fill_states.size(); ++i) {
-      out << "      ";
-      write_json_grid(out, debug.fill_states[i], true);
-      if (i < debug.fill_states.size() - 1) out << ",";
-      out << std::endl;
+    out << "    \"start_coord\": "; write_json(out, debug.start_coord);
+
+    // Plan output (if exists)
+    if (!agent_log.logs[AgentLog::Key::plan].empty()) {
+      out << "," << std::endl;  // Add comma only if there's more content
+      out << "    \"" << AgentLog::key_name((AgentLog::Key)AgentLog::Key::plan) << "\": ";
+      write_json(out, agent_log.logs[AgentLog::Key::plan], compact);
     }
-    out << "    ]" << std::endl;
+
+    // Fill states output (only add comma if we're going to write fill states)
+    if (!debug.fill_states.empty()) {
+      out << "," << std::endl;
+      out << "    \"fill_states\": [" << std::endl;
+      for (size_t i = 0; i < debug.fill_states.size(); ++i) {
+        out << "      ";
+        write_json_grid(out, debug.fill_states[i], true);
+        if (i < debug.fill_states.size() - 1) out << ",";
+        out << std::endl;
+      }
+      out << "    ]" << std::endl;
+    }
     out << "  }" << std::endl;
     out << "}" << std::endl;
   } catch (const std::exception& e) {
@@ -472,13 +484,13 @@ void write_json(std::ostream& out, FloodFillDebug const& debug) {
   }
 }
 
-void write_json(std::string const& filename, FloodFillDebug const& debug) {
+void write_json(std::string const& filename, FloodFillDebug const& debug, AgentLog const& agent_log, bool compact) {
   std::ofstream out(filename);
   if (!out.is_open()) {
     throw std::runtime_error("Could not open file for writing: " + filename);
   }
   
-  write_json(out, debug);
+  write_json(out, debug, agent_log, compact);
   
   if (out.fail()) {
     out.close();
@@ -527,7 +539,7 @@ enum class Visualize {
 };
 
 // Helper function to set up and execute flood fill debugging
-void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::string& output_file) {
+void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::string& output_file, bool compact) {
   game.flood_fill_debug = std::make_shared<FloodFillDebug>();
   auto& debug = *game.flood_fill_debug;
   debug.turn = game.turn;
@@ -541,23 +553,6 @@ void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::str
   debug.start_coord = game.snake_pos();
   FloodFillDebug::active_debug = &debug;
   
-  // Get the path to the apple before executing the next move
-  // This ensures we have a valid path in the debug data
-  try {
-    // Calculate path from snake head to apple using the existing grid
-    auto start = game.snake_pos();
-    auto grid = game.grid;
-    
-    // Use the shortest_path algorithm to find a path to the apple
-    auto path_grid = shortest_path(grid, start, game.apple_pos);
-    debug.path_to_apple = read_path(path_grid, start, game.apple_pos);
-  } 
-  catch (const std::exception& e) {
-    std::cerr << "Error calculating path to apple: " << e.what() << std::endl;
-    // If path calculation fails, create an empty path rather than crashing
-    debug.path_to_apple.clear();
-  }
-  
   // Get next move and execute it - this will trigger flood fill logging
   Dir next_move = agent(game, log);
   auto event = game.move(next_move);
@@ -565,7 +560,7 @@ void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::str
   // Write debug info and clean up
   FloodFillDebug::active_debug = nullptr;
   try {
-    write_json(output_file, debug);
+    write_json(output_file, debug, *log, compact);
     std::cout << "Wrote flood fill debug info to " << output_file << std::endl;
   } catch (const std::exception& e) {
     std::cerr << "Error writing flood fill debug info: " << e.what() << std::endl;
@@ -579,7 +574,7 @@ void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullpt
     
     // Enable flood fill debugging if we're at the target turn
     if (!config.flood_fill_json.empty() && game.turn == config.flood_fill_turn) {
-      setupFloodFillDebug(game, agent, log, config.flood_fill_json);
+      setupFloodFillDebug(game, agent, log, config.flood_fill_json, config.json_compact);
       return;
     }
     
@@ -758,8 +753,7 @@ int main(int argc, const char** argv) {
       auto agent = find_agent(mode);
       Config config;
       config.parse_optional_args(argc-2, argv+2);
-      if (!config.json_file.empty()) {
-        // Check if we're using the CheatAgent
+      if (!config.json_file.empty() || !config.flood_fill_json.empty()) {
         bool is_cheat_agent = (agent.name == "cheat");
         
         LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);

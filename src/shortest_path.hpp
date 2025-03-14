@@ -135,7 +135,6 @@ struct FloodFillDebug {
     int snake_size;
     Coord apple_pos;
     Coord start_coord;
-    std::vector<Coord> path_to_apple;
     std::vector<Grid<bool>> fill_states;
 
     static FloodFillDebug* active_debug;
@@ -152,28 +151,6 @@ struct FloodFillDebug {
     void capture_state(const Grid<bool>& state) {
         if (active_debug == this) {
             fill_states.push_back(state);
-        }
-    }
-
-    void initialize_from_game_state(const CoordRange& dims, const std::vector<Coord>& snake, 
-                                  int snakeSize, const Coord& applePos, const Coord& startCoord, int gameTurn) {
-        turn = gameTurn;
-        size = dims;
-        snake_pos = snake;
-        snake_size = snakeSize;
-        apple_pos = applePos;
-        start_coord = startCoord;
-        fill_states.clear();
-    }
-
-    bool calculate_path_to_apple(const Grid<bool>& gameGrid) {
-        try {
-            auto path_grid = shortest_path(gameGrid, start_coord, apple_pos);
-            path_to_apple = read_path(path_grid, start_coord, apple_pos);
-            return true;
-        } catch (const std::exception&) {
-            path_to_apple.clear();
-            return false;
         }
     }
 };
