@@ -179,19 +179,17 @@ void flood_fill_go(Grid<bool>& out, CanMove const& can_move, Coord a) {
                && !out[Coord{max_x+1,y}]) {
             max_x++;
         }
-
-        // Mark the line
         std::fill(&out[Coord{min_x,y}], &out[Coord{max_x,y}] + 1, true);
+
+        if (FloodFillDebug::active_debug) {
+              FloodFillDebug::active_debug->capture_state(out);
+        }
     };
 
     int y = a.y;
     int min_x, max_x;
     
-    // Fill horizontal line and capture state
     fill_horizontal_line(y, min_x, max_x);
-    if (FloodFillDebug::active_debug) {
-        FloodFillDebug::active_debug->capture_state(out);
-    }
 
     // Recursively fill connected lines above and below
     for (int x = min_x; x <= max_x; ++x) {
