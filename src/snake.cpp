@@ -540,6 +540,13 @@ enum class Visualize {
 
 // Helper function to set up and execute flood fill debugging
 void setupFloodFillDebug(Game& game, Agent& agent, AgentLog* log, const std::string& output_file, bool compact) {
+  // Create a fresh AgentLog if none was provided
+  std::unique_ptr<AgentLog> temp_log;
+  if (!log) {
+    temp_log = std::make_unique<AgentLog>();
+    log = temp_log.get();
+  }
+
   game.flood_fill_debug = std::make_shared<FloodFillDebug>();
   auto& debug = *game.flood_fill_debug;
   debug.turn = game.turn;
