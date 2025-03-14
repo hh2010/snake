@@ -465,6 +465,12 @@ void write_json(std::ostream& out, FloodFillDebug const& debug, AgentLog const& 
       write_json(out, std::vector{agent_log.logs[AgentLog::Key::plan].back()}, false);
     }
 
+    if (!agent_log.logs[AgentLog::Key::after_snake].empty()) {
+      out << "," << std::endl;  // Add comma only if there's more content
+      out << "    \"" << AgentLog::key_name((AgentLog::Key)AgentLog::Key::after_snake) << "\": ";
+      write_json(out, std::vector{agent_log.logs[AgentLog::Key::after_snake].back()}, false);
+    }
+
     // Fill states output (only add comma if we're going to write fill states)
     if (!debug.fill_states.empty()) {
       out << "," << std::endl;

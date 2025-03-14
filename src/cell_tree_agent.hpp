@@ -178,6 +178,16 @@ public:
     if (detour != DetourStrategy::none) {
       auto after = after_moves(game, path, lookahead);
       auto unreachable = cell_tree_unreachables(after, dists);
+      
+      // Store the "after" snake position for visualization
+      if (log) {
+        std::vector<Coord> after_snake_pos;
+        for (const auto& pos : after.snake) {
+          after_snake_pos.push_back(pos);
+        }
+        log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
+      }
+      
       if (unreachable.any) {
         // Update metrics for unreachable cells
         if (metrics.first_unreachable_step == -1) {

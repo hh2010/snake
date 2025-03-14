@@ -17,6 +17,7 @@ struct AgentLog {
   enum Key {
     cycle,
     plan,
+    after_snake, // Added this key to store the "after" snake position
     unreachable,
     unreachable_metrics,
     MAX_KEY
@@ -45,6 +46,7 @@ struct AgentLog {
   static std::string key_name(Key key) {
     if (key == cycle) return "cycles";
     if (key == plan) return "plans";
+    if (key == after_snake) return "after_snake";
     if (key == unreachable) return "unreachables";
     if (key == unreachable_metrics) return "unreachable_metrics";
     else throw std::logic_error("key_name");
