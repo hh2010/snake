@@ -17,15 +17,18 @@
         <div id="turn"></div>
         <div id="size"></div>
         <div id="step">Current Fill Step: <span id="fill-step">0</span></div>
+        <div id="view-mode">View Mode: Regular</div>
         <div style="margin-top:2em;">
           Use <button id="btn_prev_step">←</button>/<button id="btn_next_step">→</button> keys to step through flood fill states.<br>
           Use <button id="btn_speed_down">↓</button>/<button id="btn_speed_up">↑</button> keys to adjust step size.<br>
+          Press <button id="btn_toggle_after_snake">Space</button> to toggle between regular view and "after snake" view.
         </div>
         <div id="legend">
           <canvas id="legend-snake" width="40" height="20">Green</canvas> = snake<br>
           <canvas id="legend-apple" width="40" height="20">Red</canvas> = apple/goal<br>
           <canvas id="legend-path" width="40" height="20">Blue</canvas> = shortest path to goal<br>  
           <canvas id="legend-fill" width="40" height="20">Yellow</canvas> = would become unreachable<br>
+          <canvas id="legend-after-snake" width="40" height="20">Purple</canvas> = path after reaching goal<br>
         </div>
       </div>
     </div>
