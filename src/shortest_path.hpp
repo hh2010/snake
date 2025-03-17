@@ -1,10 +1,58 @@
 #pragma once
 #include "util.hpp"
 #include <queue>
+#include <chrono>
 
 //------------------------------------------------------------------------------
 // Shortest paths by breath first search
 //------------------------------------------------------------------------------
+
+struct ShortestPathTimer {
+  static std::chrono::nanoseconds total_time;
+  static int call_count;
+  
+  static void reset() {
+    total_time = std::chrono::nanoseconds(0);
+    call_count = 0;
+  }
+  
+  static void print_stats() {
+    if (call_count > 0) {
+      double avg_ms = std::chrono::duration<double, std::milli>(total_time).count() / call_count;
+      std::cout << "\nShortest path timing stats:" << std::endl;
+      std::cout << "  Total calls: " << call_count << std::endl;
+      std::cout << "  Total time: " << std::chrono::duration<double, std::milli>(total_time).count() << " ms" << std::endl;
+      std::cout << "  Average time: " << avg_ms << " ms per call" << std::endl;
+    }
+  }
+};
+
+std::chrono::nanoseconds ShortestPathTimer::total_time = std::chrono::nanoseconds(0);
+int ShortestPathTimer::call_count = 0;
+
+// Timer for A* algorithm
+struct AStarTimer {
+  static std::chrono::nanoseconds total_time;
+  static int call_count;
+  
+  static void reset() {
+    total_time = std::chrono::nanoseconds(0);
+    call_count = 0;
+  }
+  
+  static void print_stats() {
+    if (call_count > 0) {
+      double avg_ms = std::chrono::duration<double, std::milli>(total_time).count() / call_count;
+      std::cout << "\nA* shortest path timing stats:" << std::endl;
+      std::cout << "  Total calls: " << call_count << std::endl;
+      std::cout << "  Total time: " << std::chrono::duration<double, std::milli>(total_time).count() << " ms" << std::endl;
+      std::cout << "  Average time: " << avg_ms << " ms per call" << std::endl;
+    }
+  }
+};
+
+std::chrono::nanoseconds AStarTimer::total_time = std::chrono::nanoseconds(0);
+int AStarTimer::call_count = 0;
 
 // Find shortest paths using breath first search
 struct Step {
@@ -17,6 +65,8 @@ struct Step {
 
 template <typename CanMove>
 Grid<Step> generic_shortest_path(CoordRange dims, CanMove const& can_move, Coord from, Coord to = {-1,-1}) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
   Grid<Step> out(dims, Step{INT_MAX, NOT_VISITED});
   std::vector<Coord> queue, next;
   queue.push_back(from);
@@ -32,13 +82,23 @@ Grid<Step> generic_shortest_path(CoordRange dims, CanMove const& can_move, Coord
           out[b].dist = dist;
           out[b].from = a;
           next.push_back(b);
-          if (b == to) return out;
+          if (b == to) {
+            auto end_time = std::chrono::high_resolution_clock::now();
+            ShortestPathTimer::total_time += end_time - start_time;
+            ShortestPathTimer::call_count++;
+            return out;
+          }
         }
       }
     }
     std::swap(queue,next);
     next.clear();
   }
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  ShortestPathTimer::total_time += end_time - start_time;
+  ShortestPathTimer::call_count++;
+  
   return out;
 }
 
@@ -91,6 +151,9 @@ std::ostream& operator << (std::ostream& out, Grid<Step> const& paths) {
 
 template <typename Edge>
 Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, Coord to, int min_distance_cost=1) {
+  // Start timing
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
   Grid<Step> out(dims, Step{INT_MAX, INVALID});
   struct Item {
     Coord c;
@@ -120,6 +183,12 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
       }
     }
   }
+  
+  // End timing and update stats
+  auto end_time = std::chrono::high_resolution_clock::now();
+  AStarTimer::total_time += end_time - start_time;
+  AStarTimer::call_count++;
+  
   return out;
 }
 

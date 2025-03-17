@@ -14,6 +14,7 @@
 #include <functional>
 #include <thread>
 #include <mutex>
+#include <chrono>
 
 //------------------------------------------------------------------------------
 // Logging games
@@ -745,9 +746,17 @@ void optimize_agent(ParameterizedAgentFactory& agent, Config& config, std::ostre
 }
 
 int main(int argc, const char** argv) {
+  // Start timing for entire program
+  auto program_start_time = std::chrono::high_resolution_clock::now();
+  
   std::string mode = argc >= 2 ? argv[1] : "help";
   
   try {
+    // Reset timers for shortest path, A* and unreachables
+    ShortestPathTimer::reset();
+    AStarTimer::reset();
+    UnreachableTimer::reset();
+    
     if (mode == "help" || mode == "--help" || mode == "-h") {
       print_help(argv[0]);
     } else if (mode == "list") {
@@ -788,10 +797,22 @@ int main(int argc, const char** argv) {
         std::cout << stats << std::endl;
       }
     }
+    
+    // Print timing stats
+    ShortestPathTimer::print_stats();
+    AStarTimer::print_stats();
+    UnreachableTimer::print_stats();
+    
   } catch (std::exception const& e) {
     std::cerr << e.what() << std::endl;
     return EXIT_FAILURE;
   }
+
+  // Calculate and print total program time
+  auto program_end_time = std::chrono::high_resolution_clock::now();
+  auto program_duration = std::chrono::duration<double>(program_end_time - program_start_time);
+  std::cout << "\nTotal program execution time: " << program_duration.count() << " seconds" << std::endl;
+  
   return EXIT_SUCCESS;
 }
 

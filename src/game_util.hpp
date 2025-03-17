@@ -4,6 +4,7 @@
 #include "shortest_path.hpp"
 #include <assert.h>
 #include <climits>
+#include <chrono>  // Add chrono for timing functionality
 
 //------------------------------------------------------------------------------
 // Look ahead to what would happen if we were to follow a path
@@ -42,6 +43,30 @@ GameBase after_moves(GameBase const& game, std::vector<Coord> const& path, Looka
 // Unreachable parts of the grid
 //------------------------------------------------------------------------------
 
+// Timer for unreachables function
+struct UnreachableTimer {
+  static std::chrono::nanoseconds total_time;
+  static int call_count;
+  
+  static void reset() {
+    total_time = std::chrono::nanoseconds(0);
+    call_count = 0;
+  }
+  
+  static void print_stats() {
+    if (call_count > 0) {
+      double avg_ms = std::chrono::duration<double, std::milli>(total_time).count() / call_count;
+      std::cout << "\nUnreachables timing stats:" << std::endl;
+      std::cout << "  Total calls: " << call_count << std::endl;
+      std::cout << "  Total time: " << std::chrono::duration<double, std::milli>(total_time).count() << " ms" << std::endl;
+      std::cout << "  Average time: " << avg_ms << " ms per call" << std::endl;
+    }
+  }
+};
+
+std::chrono::nanoseconds UnreachableTimer::total_time = std::chrono::nanoseconds(0);
+int UnreachableTimer::call_count = 0;
+
 struct Unreachables {
   bool any = false;
   Coord nearest = {-1,-1};
@@ -59,6 +84,8 @@ struct Unreachables {
 // Note: this is not exactly the same as the snake splitting the grid into two (or more) parts
 template <typename CanMove, typename GameLike>
 Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> const& dists) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
   // are there unreachable coords?
   Unreachables out = flood_fill(game.dimensions(), can_move, game.snake_pos());
   for (auto a : game.grid.coords()) {
@@ -72,6 +99,11 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
       }
     }
   }
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  UnreachableTimer::total_time += end_time - start_time;
+  UnreachableTimer::call_count++;
+  
   return out;
 }
 
