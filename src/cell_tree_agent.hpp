@@ -1,6 +1,7 @@
 #include "agent.hpp"
 #include "game_util.hpp"
 #include "shortest_path.hpp"
+#include "differential_connectivity.hpp"  // Include the new module
 
 //------------------------------------------------------------------------------
 // Agent: tree based
@@ -85,7 +86,8 @@ Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dist
 enum class DetourStrategy {
   none,
   any,
-  nearest_unreachable
+  nearest_unreachable,
+  dsu_connectivity  // New strategy using DSU
 };
 
 // Metrics for tracking unreachable cells
@@ -101,7 +103,7 @@ public:
   // config
   bool recalculate_path = true;
   Lookahead lookahead = Lookahead::many_move_tail;
-  DetourStrategy detour = DetourStrategy::nearest_unreachable;
+  DetourStrategy detour = DetourStrategy::dsu_connectivity;  // Default to using DSU connectivity
   // penalties
   int same_cell_penalty = 0;
   int new_cell_penalty = 0;
@@ -109,10 +111,13 @@ public:
   int edge_penalty_in = 0, edge_penalty_out = 0;
   int wall_penalty_in = 0, wall_penalty_out = 0;
   int open_penalty_in = 0, open_penalty_out = 0;
+  int connectivity_threshold = 5;
+  int connectivity_penalty = 20000;
 
 private:
   std::vector<Coord> cached_path;
   UnreachableMetrics metrics;
+  std::unique_ptr<DifferentialConnectivity> diffConn;
 
   void logUnreachableMetrics(const Game& game, AgentLog* log) {
     std::vector<int> metrics_data = {
@@ -124,12 +129,35 @@ private:
     log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
   }
 
+  void updateDiffConnectivity(const Game& game) {
+    if (!diffConn) {
+      auto isObstacle = [&game](Coord c) {
+        return game.grid[c];
+      };
+      diffConn = std::make_unique<DifferentialConnectivity>(game.dimensions(), isObstacle);
+    } else if (recalculate_path) {
+      auto isObstacle = [&game](Coord c) {
+        return game.grid[c];
+      };
+      diffConn = std::make_unique<DifferentialConnectivity>(game.dimensions(), isObstacle);
+    }
+  }
+
 public:
   Dir operator () (Game const& game, AgentLog* log = nullptr) override {
     Coord pos = game.snake_pos();
+    
+    updateDiffConnectivity(game);
+    
     if (!cached_path.empty() && !recalculate_path) {
       Coord pos2 = cached_path.back();
       cached_path.pop_back();
+      
+      if (diffConn) {
+        Coord oldTail = game.snake[0];
+        diffConn->updateForMove(oldTail, pos2, [&game](Coord c) { return game.grid[c]; });
+      }
+      
       return pos2 - pos;
     }
     
@@ -143,10 +171,19 @@ public:
         Dir right = rotate_clockwise(dir);
         bool hugs_edge = !game.grid.valid(b+right);
         bool hugs_wall = !hugs_edge && game.grid[b+right];
-        return 1000
+        
+        // Base cost calculation
+        int cost = 1000
           + (to_parent ? parent_cell_penalty : to_same ? same_cell_penalty : new_cell_penalty)
           + (to_same ? (hugs_edge ? edge_penalty_in  : hugs_wall ? wall_penalty_in  : open_penalty_in)
                      : (hugs_edge ? edge_penalty_out : hugs_wall ? wall_penalty_out : open_penalty_out));
+        
+        // Add connectivity penalty if using DSU strategy
+        if (detour == DetourStrategy::dsu_connectivity && diffConn) {
+          cost += diffConn->penaltyForMove(a, dir, connectivity_threshold, connectivity_penalty);
+        }
+        
+        return cost;
       } else {
         return INT_MAX;  // feel like the game should just assert out here
       }
@@ -175,7 +212,7 @@ public:
     }
     
     // Heuristic 3: prevent making parts of the grid unreachable
-    if (detour != DetourStrategy::none) {
+    if (detour != DetourStrategy::none && detour != DetourStrategy::dsu_connectivity) {
       auto after = after_moves(game, path, lookahead);
       auto unreachable = cell_tree_unreachables(after, dists);
       
@@ -250,6 +287,12 @@ public:
     // use as new cached path
     cached_path = std::move(path);
     cached_path.pop_back();
+    
+    // Update connectivity for the move if using DSU
+    if (diffConn && detour == DetourStrategy::dsu_connectivity) {
+      Coord oldTail = game.snake[0];
+      diffConn->updateForMove(oldTail, pos2, [&game](Coord c) { return game.grid[c]; });
+    }
     
     return pos2 - pos;
   }
