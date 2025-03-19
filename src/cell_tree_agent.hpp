@@ -1,6 +1,7 @@
 #include "agent.hpp"
 #include "game_util.hpp"
 #include "shortest_path.hpp"
+#include <functional> // Add missing include for std::function
 
 //------------------------------------------------------------------------------
 // Agent: tree based
@@ -80,6 +81,72 @@ Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dist
     return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
   };
   return unreachables(can_move, game, dists);
+}
+
+// Get all unreachable cells from the Unreachables object
+std::vector<Coord> get_all_unreachable_cells(const Unreachables& unreachable, const CoordRange& dims) {
+  std::vector<Coord> result;
+  for (auto coord : dims) {
+    if (!unreachable.reachable[coord]) {
+      result.push_back(coord);
+    }
+  }
+  return result;
+}
+
+// Check if all unreachable cells can be visited from the current position
+// Returns true if all unreachables can be visited, false otherwise
+bool can_visit_all_unreachables(
+    const Game& game, 
+    const std::vector<Coord>& unreachable_cells,
+    const std::function<int(Coord, Coord, Dir)>& edge_fn) {
+    
+  if (unreachable_cells.empty()) {
+    return true;
+  }
+
+  // Start from current snake position
+  Coord current_pos = game.snake_pos();
+  std::vector<bool> visited(unreachable_cells.size(), false);
+  
+  // Continue until all unreachable cells are visited
+  int remaining = unreachable_cells.size();
+  while (remaining > 0) {
+    // Find nearest unvisited unreachable cell
+    int nearest_idx = -1;
+    int min_distance = INT_MAX;
+    
+    for (size_t i = 0; i < unreachable_cells.size(); i++) {
+      if (!visited[i]) {
+        // Calculate shortest path to this unreachable
+        auto dists = astar_shortest_path(game.grid.coords(), edge_fn, current_pos, unreachable_cells[i]);
+        int dist = dists[unreachable_cells[i]].dist;
+        
+        if (dist == INT_MAX) {
+          // If any unreachable cell cannot be reached, return false immediately
+          return false;
+        }
+        
+        if (dist < min_distance) {
+          min_distance = dist;
+          nearest_idx = i;
+        }
+      }
+    }
+    
+    if (nearest_idx == -1) {
+      // This should not happen, but just in case
+      break;
+    }
+    
+    // Update current position and mark as visited
+    current_pos = unreachable_cells[nearest_idx];
+    visited[nearest_idx] = true;
+    remaining--;
+  }
+  
+  // If we reach here, all unreachables could be visited
+  return true;
 }
 
 enum class DetourStrategy {
@@ -219,17 +286,22 @@ public:
             }
           }
         } else if (detour == DetourStrategy::nearest_unreachable) {
-          // 3B: move to one of the unreachable coords
-          if (unreachable.dist_to_nearest < INT_MAX) {
+          // Get all unreachable cells
+          std::vector<Coord> all_unreachables = get_all_unreachable_cells(unreachable, game.dimensions());
+          
+          // Check if all unreachable cells can be visited
+          bool unreachables_can_be_visited = can_visit_all_unreachables(game, all_unreachables, edge);
+          
+          if (unreachables_can_be_visited) {
             // move to an unreachable coord first
             next_step = first_step(dists, pos, unreachable.nearest);
             cached_path.clear();
-            if (log)
-            {
+            if (log) {
               logUnreachableMetrics(game, log);
             }
             return next_step - pos;
           }
+          
           // failed to find detour
           // This can happen because it previously looked like everything would be reachable upon reaching the apple,
           // but moving the snake's tail opened up a shorter path
