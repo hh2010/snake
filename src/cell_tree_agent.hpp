@@ -153,7 +153,7 @@ public:
     };
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
-    auto pos2 = path.back();
+    auto next_step = path.back();
     
     if (log) {
       auto path_copy = path;
@@ -161,16 +161,16 @@ public:
       log->add(game.turn, AgentLog::Key::plan, std::move(path_copy));
     }
     
-    if (pos2 == INVALID) {
+    if (next_step == INVALID) {
       if (!cached_path.empty()) {
-        pos2 = cached_path.back();
+        next_step = cached_path.back();
       } else {
         // We somehow divided the grid into two parts.
         // Hack: if we pretend that we are at the goal, then the code below will trigger
         // because the current pos is unreachable from there.
         // path == {apple_pos,INVALID};
         path.pop_back();
-        pos2 = path.back();
+        next_step = path.back();
       }
     }
     
@@ -212,7 +212,7 @@ public:
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
           for (auto dir : dirs) {
-            if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != pos2) {
+            if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
               //std::cout << game << "Moving " << dir << " instead of " << (pos2-pos) << " to avoid unreachables" << std::endl;
               cached_path.clear();
               return dir;
@@ -222,22 +222,22 @@ public:
           // 3B: move to one of the unreachable coords
           if (unreachable.dist_to_nearest < INT_MAX) {
             // move to an unreachable coord first
-            pos2 = first_step(dists, pos, unreachable.nearest);
+            next_step = first_step(dists, pos, unreachable.nearest);
             cached_path.clear();
             if (log)
             {
               logUnreachableMetrics(game, log);
             }
-            return pos2 - pos;
+            return next_step - pos;
           }
           // failed to find detour
           // This can happen because it previously looked like everything would be reachable upon reaching the apple,
           // but moving the snake's tail opened up a shorter path
           // Solution: just continue along previous path
           if (!cached_path.empty()) {
-            pos2 = cached_path.back();
+            next_step = cached_path.back();
             cached_path.pop_back();
-            return pos2 - pos;
+            return next_step - pos;
           }
         }
         if (0) {
@@ -251,7 +251,7 @@ public:
     cached_path = std::move(path);
     cached_path.pop_back();
     
-    return pos2 - pos;
+    return next_step - pos;
   }
   
   // Getter for the metrics
