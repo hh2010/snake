@@ -105,6 +105,9 @@ bool can_visit_all_unreachables(
     return true;
   }
 
+  // Start timing
+  auto start_time = std::chrono::high_resolution_clock::now();
+
   // Use a more efficient approach with a single BFS traversal
   // Start from current snake position
   Coord start_pos = game.snake_pos();
@@ -133,6 +136,10 @@ bool can_visit_all_unreachables(
     
     // If we've visited all unreachables, we're done
     if (remaining_unreachables == 0) {
+      // End timing
+      auto end_time = std::chrono::high_resolution_clock::now();
+      BFSTimer::total_time += end_time - start_time;
+      BFSTimer::call_count++;
       return true;
     }
   }
@@ -159,12 +166,21 @@ bool can_visit_all_unreachables(
           
           // If we've visited all unreachables, we're done
           if (remaining_unreachables == 0) {
+            // End timing
+            auto end_time = std::chrono::high_resolution_clock::now();
+            BFSTimer::total_time += end_time - start_time;
+            BFSTimer::call_count++;
             return true;
           }
         }
       }
     }
   }
+  
+  // End timing
+  auto end_time = std::chrono::high_resolution_clock::now();
+  BFSTimer::total_time += end_time - start_time;
+  BFSTimer::call_count++;
   
   // If the BFS is exhausted and we still have unreachable cells,
   // then at least one unreachable cell cannot be visited

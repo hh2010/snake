@@ -54,6 +54,30 @@ struct AStarTimer {
 std::chrono::nanoseconds AStarTimer::total_time = std::chrono::nanoseconds(0);
 int AStarTimer::call_count = 0;
 
+// Timer for BFS algorithm
+struct BFSTimer {
+  static std::chrono::nanoseconds total_time;
+  static int call_count;
+  
+  static void reset() {
+    total_time = std::chrono::nanoseconds(0);
+    call_count = 0;
+  }
+  
+  static void print_stats() {
+    if (call_count > 0) {
+      double avg_ms = std::chrono::duration<double, std::milli>(total_time).count() / call_count;
+      std::cout << "\nBFS timing stats:" << std::endl;
+      std::cout << "  Total calls: " << call_count << std::endl;
+      std::cout << "  Total time: " << std::chrono::duration<double, std::milli>(total_time).count() << " ms" << std::endl;
+      std::cout << "  Average time: " << avg_ms << " ms per call" << std::endl;
+    }
+  }
+};
+
+std::chrono::nanoseconds BFSTimer::total_time = std::chrono::nanoseconds(0);
+int BFSTimer::call_count = 0;
+
 // Find shortest paths using breath first search
 struct Step {
   int dist;

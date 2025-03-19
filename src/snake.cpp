@@ -752,10 +752,10 @@ int main(int argc, const char** argv) {
   std::string mode = argc >= 2 ? argv[1] : "help";
   
   try {
-    // Reset timers for shortest path, A* and unreachables
     ShortestPathTimer::reset();
     AStarTimer::reset();
     UnreachableTimer::reset();
+    BFSTimer::reset();
     
     if (mode == "help" || mode == "--help" || mode == "-h") {
       print_help(argv[0]);
@@ -801,7 +801,7 @@ int main(int argc, const char** argv) {
     // Print timing stats
     ShortestPathTimer::print_stats();
     AStarTimer::print_stats();
-    UnreachableTimer::print_stats();
+    BFSTimer::print_stats();
     
   } catch (std::exception const& e) {
     std::cerr << e.what() << std::endl;
