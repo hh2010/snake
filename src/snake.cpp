@@ -801,6 +801,7 @@ int main(int argc, const char** argv) {
     // Print timing stats
     ShortestPathTimer::print_stats();
     AStarTimer::print_stats();
+    UnreachableTimer::print_stats();
     BFSTimer::print_stats();
     
   } catch (std::exception const& e) {
