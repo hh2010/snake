@@ -94,7 +94,7 @@ std::vector<Coord> get_all_unreachable_cells(const Unreachables& unreachable, co
   return result;
 }
 
-// Check if all unreachable cells can be visited from the current position
+// Check if all unreachable cells can be visited from the current position using BFS
 // Returns true if all unreachables can be visited, false otherwise
 bool can_visit_all_unreachables(
     const Game& game, 
@@ -105,48 +105,70 @@ bool can_visit_all_unreachables(
     return true;
   }
 
+  // Use a more efficient approach with a single BFS traversal
   // Start from current snake position
-  Coord current_pos = game.snake_pos();
-  std::vector<bool> visited(unreachable_cells.size(), false);
+  Coord start_pos = game.snake_pos();
+  std::vector<bool> unreachable_visited(unreachable_cells.size(), false);
+  int remaining_unreachables = unreachable_cells.size();
   
-  // Continue until all unreachable cells are visited
-  int remaining = unreachable_cells.size();
-  while (remaining > 0) {
-    // Find nearest unvisited unreachable cell
-    int nearest_idx = -1;
-    int min_distance = INT_MAX;
+  // Create a mapping from coordinates to unreachable indices for quick lookup
+  Grid<int> unreachable_indices(game.dimensions(), -1);
+  for (size_t i = 0; i < unreachable_cells.size(); i++) {
+    unreachable_indices[unreachable_cells[i]] = i;
+  }
+  
+  // BFS queue
+  std::vector<Coord> queue;
+  Grid<bool> visited(game.dimensions(), false);
+  
+  // Initialize with start position
+  queue.push_back(start_pos);
+  visited[start_pos] = true;
+  
+  // If start position is an unreachable cell, mark it
+  int start_idx = unreachable_indices[start_pos];
+  if (start_idx >= 0) {
+    unreachable_visited[start_idx] = true;
+    remaining_unreachables--;
     
-    for (size_t i = 0; i < unreachable_cells.size(); i++) {
-      if (!visited[i]) {
-        // Calculate shortest path to this unreachable
-        auto dists = astar_shortest_path(game.grid.coords(), edge_fn, current_pos, unreachable_cells[i]);
-        int dist = dists[unreachable_cells[i]].dist;
+    // If we've visited all unreachables, we're done
+    if (remaining_unreachables == 0) {
+      return true;
+    }
+  }
+  
+  // Standard BFS implementation
+  for (size_t i = 0; i < queue.size(); i++) {
+    Coord current = queue[i];
+    
+    // Try all four directions
+    for (Dir dir : dirs) {
+      Coord next = current + dir;
+      
+      // Check if this is a valid move
+      if (game.dimensions().valid(next) && !visited[next] && edge_fn(current, next, dir) != INT_MAX) {
+        // Mark as visited
+        visited[next] = true;
+        queue.push_back(next);
         
-        if (dist == INT_MAX) {
-          // If any unreachable cell cannot be reached, return false immediately
-          return false;
-        }
-        
-        if (dist < min_distance) {
-          min_distance = dist;
-          nearest_idx = i;
+        // Check if this is an unreachable cell
+        int unreachable_idx = unreachable_indices[next];
+        if (unreachable_idx >= 0 && !unreachable_visited[unreachable_idx]) {
+          unreachable_visited[unreachable_idx] = true;
+          remaining_unreachables--;
+          
+          // If we've visited all unreachables, we're done
+          if (remaining_unreachables == 0) {
+            return true;
+          }
         }
       }
     }
-    
-    if (nearest_idx == -1) {
-      // This should not happen, but just in case
-      break;
-    }
-    
-    // Update current position and mark as visited
-    current_pos = unreachable_cells[nearest_idx];
-    visited[nearest_idx] = true;
-    remaining--;
   }
   
-  // If we reach here, all unreachables could be visited
-  return true;
+  // If the BFS is exhausted and we still have unreachable cells,
+  // then at least one unreachable cell cannot be visited
+  return false;
 }
 
 enum class DetourStrategy {
