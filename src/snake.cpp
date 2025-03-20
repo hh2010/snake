@@ -617,6 +617,7 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
           agent = make_agent(config); // potentially uses rng
           rng = config.rng.next_rng();
         }
+        std::cout << "Playing round " << (thread+1) << "/" << config.num_rounds << "\033[K\r" << std::flush;
         Game game(config.board_size, rng, is_cheat_agent);
         play(game, *agent, config);
         {
@@ -790,9 +791,7 @@ int main(int argc, const char** argv) {
           write_json(config.json_file, agent, game, agent_log, config.json_compact);
         }
       } else {
-        // Check if we're using the CheatAgent
         bool is_cheat_agent = (agent.name == "cheat");
-        
         auto stats = play_multiple(agent.make, config, is_cheat_agent);
         std::cout << stats << std::endl;
       }

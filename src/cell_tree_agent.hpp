@@ -100,10 +100,8 @@ bool can_visit_all_unreachables(
     const Game& game, 
     const std::vector<Coord>& unreachable_cells,
     const std::function<int(Coord, Coord, Dir)>& edge_fn) {
-    
-  if (unreachable_cells.empty()) {
-    return true;
-  }
+
+  assert(!unreachable_cells.empty() && "Unreachable cells list should not be empty");
 
   // Start timing
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -229,6 +227,24 @@ private:
     log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
   }
 
+  Dir move_to_unreachable(Game const& game, Grid<Step> const& dists, Coord pos, Unreachables const& unreachable, AgentLog* log, std::vector<Coord> path) {
+    // move to an unreachable coord first
+    Coord next_step_to_unreachable = first_step(dists, pos, unreachable.nearest);
+    if (log) {
+      logUnreachableMetrics(game, log);
+    }
+    if ((cached_path.back() != next_step_to_unreachable) && (cached_path.size() > 0))
+    {
+      cached_path.clear();
+    }
+    else
+    {
+      cached_path = std::move(path);
+      cached_path.pop_back();
+    }
+    return next_step_to_unreachable - pos;
+  }
+
 public:
   Dir operator () (Game const& game, AgentLog* log = nullptr) override {
     Coord pos = game.snake_pos();
@@ -328,16 +344,10 @@ public:
           std::vector<Coord> all_unreachables = get_all_unreachable_cells(unreachable, game.dimensions());
           
           // Check if all unreachable cells can be visited
-          bool unreachables_can_be_visited = can_visit_all_unreachables(game, all_unreachables, edge);
+          bool all_unreachables_can_be_visited = can_visit_all_unreachables(game, all_unreachables, edge);
           
-          if (unreachables_can_be_visited) {
-            // move to an unreachable coord first
-            next_step = first_step(dists, pos, unreachable.nearest);
-            cached_path.clear();
-            if (log) {
-              logUnreachableMetrics(game, log);
-            }
-            return next_step - pos;
+          if (all_unreachables_can_be_visited) {
+            return move_to_unreachable(game, dists, pos, unreachable, log, path);
           }
           
           // failed to find detour
