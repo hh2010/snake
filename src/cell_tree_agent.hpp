@@ -100,7 +100,7 @@ struct CellTreeAgent : Agent {
 public:
   // config
   bool recalculate_path = true;
-  Lookahead lookahead = Lookahead::many_move_tail;
+  Lookahead lookahead = Lookahead::many_keep_tail;
   DetourStrategy detour = DetourStrategy::nearest_unreachable;
   // penalties
   int same_cell_penalty = 0;
