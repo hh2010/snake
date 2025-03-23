@@ -132,6 +132,7 @@ public:
       cached_path.pop_back();
       return pos2 - pos;
     }
+    recalculate_path = true;
     
     // Find shortest path satisfying 1,2
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
@@ -176,8 +177,15 @@ public:
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {
-      auto after = after_moves(game, path, lookahead);
+      auto after = after_moves(game, path, Lookahead::many_keep_tail);
+      auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
       auto unreachable = cell_tree_unreachables(after, dists);
+      auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
+      if ((!unreachable_move_tail.any) & (unreachable.any)) {
+        auto after = after_move_tail;
+        auto unreachable = unreachable_move_tail;
+        recalculate_path = false;
+      }
       
       // Store the "after" snake position for visualization
       if (log) {
