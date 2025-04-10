@@ -171,7 +171,7 @@ Grid<Coord> random_spanning_tree(CoordRange dims, RNG& rng) {
     }
   }
   while (!queue.empty()) {
-    int i = rng.random(queue.size());
+    int i = rng.random(static_cast<int>(queue.size()));
     Coord parent = queue[i].first;
     Coord node   = queue[i].second;
     queue[i] = queue.back();
