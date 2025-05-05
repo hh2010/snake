@@ -133,7 +133,6 @@ public:
       return pos2 - pos;
     }
     recalculate_path = true;
-    
     // Find shortest path satisfying 1,2
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
     auto edge = [&](Coord a, Coord b, Dir dir) {
@@ -181,22 +180,21 @@ public:
       auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
       auto unreachable = cell_tree_unreachables(after, dists);
       auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
-      if ((!unreachable_move_tail.any) & (unreachable.any)) {
-        auto after = after_move_tail;
-        auto unreachable = unreachable_move_tail;
-        recalculate_path = false;
-      }
+      bool use_move_tail = (!unreachable_move_tail.any) & (unreachable.any);
+      const GameBase& after_ref = use_move_tail ? after_move_tail : after;
+      const Unreachables& unreachable_ref = use_move_tail ? unreachable_move_tail : unreachable;
+      recalculate_path = !use_move_tail;
       
       // Store the "after" snake position for visualization
       if (log) {
         std::vector<Coord> after_snake_pos;
-        for (const auto& pos : after.snake) {
+        for (const auto& pos : after_ref.snake) {
           after_snake_pos.push_back(pos);
         }
         log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
       }
       
-      if (unreachable.any) {
+      if (unreachable_ref.any) {
         // Update metrics for unreachable cells
         if (metrics.first_unreachable_step == -1) {
           metrics.first_unreachable_step = game.turn;
@@ -206,14 +204,14 @@ public:
         
         // Count unreachable cells
         int unreachable_count = 0;
-        for (bool r : unreachable.reachable) {
+        for (bool r : unreachable_ref.reachable) {
           if (!r) unreachable_count++;
         }
         metrics.cumulative_unreachable_cells += unreachable_count;
         
         if (log) {
           Grid<bool> unreachable_grid(game.dimensions());
-          std::transform(unreachable.reachable.begin(), unreachable.reachable.end(), unreachable_grid.begin(), [](bool r){ return !r; });
+          std::transform(unreachable_ref.reachable.begin(), unreachable_ref.reachable.end(), unreachable_grid.begin(), [](bool r){ return !r; });
           log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
         }
         
@@ -228,9 +226,9 @@ public:
           }
         } else if (detour == DetourStrategy::nearest_unreachable) {
           // 3B: move to one of the unreachable coords
-          if (unreachable.dist_to_nearest < INT_MAX) {
+          if (unreachable_ref.dist_to_nearest < INT_MAX) {
             // move to an unreachable coord first
-            next_step = first_step(dists, pos, unreachable.nearest);
+            next_step = first_step(dists, pos, unreachable_ref.nearest);
             cached_path.clear();
             if (log)
             {
