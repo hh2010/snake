@@ -449,7 +449,7 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config) {
     t.join();
   }
   // done
-  if (!config.quiet) std::cout << "\033[K\r";
+  if (!config.quiet) std::cout << std::endl;
   return stats;
 }
 
@@ -467,7 +467,7 @@ Stats play_multiple(AgentGen make_agent, Config& config) {
       std::cout << (i+1) << "/" << config.num_rounds << "  " << stats << "\033[K\r" << std::flush;
     }
   }
-  if (!config.quiet) std::cout << "\033[K\r";
+  if (!config.quiet) std::cout << std::endl;
   return stats;
 }
 
