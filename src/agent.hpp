@@ -20,6 +20,7 @@ struct AgentLog {
     after_snake, // Added this key to store the "after" snake position
     unreachable,
     unreachable_metrics,
+    safe_steps,
     MAX_KEY
   };
   
@@ -49,6 +50,7 @@ struct AgentLog {
     if (key == after_snake) return "after_snake";
     if (key == unreachable) return "unreachables";
     if (key == unreachable_metrics) return "unreachable_metrics";
+    if (key == safe_steps) return "safe_steps";
     else throw std::logic_error("key_name");
   }
 };

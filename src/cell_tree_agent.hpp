@@ -1,6 +1,10 @@
+#pragma once
+
 #include "agent.hpp"
 #include "game_util.hpp"
 #include "shortest_path.hpp"
+#include "snake_path_planner.hpp"
+#include "cell_tree_utils.hpp"
 
 //------------------------------------------------------------------------------
 // Agent: tree based
@@ -33,55 +37,6 @@
 // It would also be good to hug walls, to avoid creating large almost closed regions
 // that could be added as a factor to the shortest path code
 
-
-// Find current tree (represented as parent pointers)
-// note: the returned grid is only w/2 * h/2
-// {-1,-1} indicates cell is not visited
-// {-2,-2} indicates cell is root
-Grid<CellCoord> cell_tree_parents(CoordRange dims, RingBuffer<Coord> const& snake) {
-  Grid<CellCoord> parents(dims.w/2, dims.h/2, NOT_VISITED);
-  CellCoord parent = ROOT;
-  for (int i=snake.size()-1 ; i >= 0; --i) {
-    Coord c = snake[i];
-    CellCoord cell_coord = cell(c);
-    if (parents[cell_coord] == NOT_VISITED) {
-      parents[cell_coord] = parent;
-    }
-    parent = cell_coord;
-  }
-  return parents;
-}
-
-// can you move from a to b?
-bool can_move_in_cell_tree(Grid<Coord> const& cell_parents, Coord a, Coord b, Dir dir) {
-  // condition 1
-  if (!is_cell_move(a, dir)) return false;
-  // condition 2 (only move to parent or unvisted cell)
-  Coord cell_a = cell(a);
-  Coord cell_b = cell(b);
-  return cell_b == cell_a || cell_parents[cell_b] == NOT_VISITED || cell_parents[cell_a] == cell_b;
-}
-
-Dir move_to_parent(Grid<Coord> const& cell_parents, Coord a) {
-  Coord cell_a = cell(a);
-  Coord parent = cell_parents[cell_a];
-  int x = a.x % 2, y = a.y % 2;
-  if (x == 1 && y == 0) return parent.y < cell_a.y ? Dir::up    : Dir::left;
-  if (x == 0 && y == 1) return parent.y > cell_a.y ? Dir::down  : Dir::right;
-  if (x == 0 && y == 0) return parent.x < cell_a.x ? Dir::left  : Dir::down;
-  if (x == 1 && y == 1) return parent.x > cell_a.x ? Dir::right : Dir::up;
-  throw "move_to_parent";
-}
-
-
-Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dists) {
-  auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
-  auto can_move = [&](Coord from, Coord to, Dir dir) {
-    return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
-  };
-  return unreachables(can_move, game, dists);
-}
-
 enum class DetourStrategy {
   none,
   any,
@@ -102,6 +57,7 @@ public:
   bool recalculate_path = true;
   Lookahead lookahead = Lookahead::many_keep_tail;
   DetourStrategy detour = DetourStrategy::nearest_unreachable;
+  int extra_steps_desired = 0;
   // penalties
   int same_cell_penalty = 0;
   int new_cell_penalty = 0;
@@ -110,9 +66,17 @@ public:
   int wall_penalty_in = 0, wall_penalty_out = 0;
   int open_penalty_in = 0, open_penalty_out = 0;
 
+  CellTreeAgent() : path_planner(extra_steps_desired) {}
+
+  // Getter for the metrics
+  UnreachableMetrics getMetrics() const {
+    return metrics;
+  }
+
 private:
   std::vector<Coord> cached_path;
   UnreachableMetrics metrics;
+  SnakePathPlanner path_planner;
 
   void logUnreachableMetrics(const Game& game, AgentLog* log) {
     std::vector<int> metrics_data = {
@@ -124,18 +88,10 @@ private:
     log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
   }
 
-public:
-  Dir operator () (Game const& game, AgentLog* log = nullptr) override {
-    Coord pos = game.snake_pos();
-    if (!cached_path.empty() && !recalculate_path) {
-      Coord pos2 = cached_path.back();
-      cached_path.pop_back();
-      return pos2 - pos;
-    }
-    // recalculate_path = true;
-    // Find shortest path satisfying 1,2
-    auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
-    auto edge = [&](Coord a, Coord b, Dir dir) {
+  // Create edge function for path finding
+  // TODO: i think this can be refractored to return an int
+  std::function<int(Coord, Coord, Dir)> createEdgeFunction(const GameBase& game, const Grid<Coord>& cell_parents) {
+    return [&](Coord a, Coord b, Dir dir) {
       if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game.grid[b]) {
         // small penalty for moving to same/different cell
         bool to_parent = cell(b) == cell_parents[cell(a)];
@@ -148,12 +104,34 @@ public:
           + (to_same ? (hugs_edge ? edge_penalty_in  : hugs_wall ? wall_penalty_in  : open_penalty_in)
                      : (hugs_edge ? edge_penalty_out : hugs_wall ? wall_penalty_out : open_penalty_out));
       } else {
-        return INT_MAX;  // feel like the game should just assert out here
+        return INT_MAX;
       }
     };
+  }
+
+  Dir operator () (Game const& game, AgentLog* log = nullptr) override {    
+    Coord pos = game.snake_pos();
+    if (!cached_path.empty() && !recalculate_path) {
+      Coord pos2 = cached_path.back();
+      cached_path.pop_back();
+      return pos2 - pos;
+    }
+    recalculate_path = true;
+    
+    // Find shortest path satisfying cell tree constraints
+    auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
+    auto edge = createEdgeFunction(game, cell_parents);
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
+    // int path_size_diff = cached_path.size() - path.size();  // need to make this 0 if the cached path was cleared on the previous turn
+    auto path_size_diff = extra_steps_desired;
+    path_planner.setExtraStepsDesired(path_size_diff);
     auto next_step = path.back();
+
+    if (path_size_diff > 0) {
+      std::cout << "shorter path found ";
+      std::cout << game.turn << std::endl;
+    }
     
     if (log) {
       auto path_copy = path;
@@ -176,25 +154,36 @@ public:
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {
-      auto after = after_moves(game, path, Lookahead::many_keep_tail);
+      // TODO: make this its own detour strategy rather than always doing it
+      // TODO: right now this only uses the new path if it clears all unreachables; might want to use if it clears some
       auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
-      auto unreachable = cell_tree_unreachables(after, dists);
       auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
-      bool use_move_tail = (!unreachable_move_tail.any) & (unreachable.any);
-      const GameBase& after_ref = use_move_tail ? after_move_tail : after;
-      const Unreachables& unreachable_ref = use_move_tail ? unreachable_move_tail : unreachable;
-      // recalculate_path = !use_move_tail;
       
+      // auto after = after_moves(game, path, Lookahead::many_keep_tail);
+      // auto unreachable = cell_tree_unreachables(after, dists);
       // Store the "after" snake position for visualization
       if (log) {
         std::vector<Coord> after_snake_pos;
-        for (const auto& pos : after_ref.snake) {
+        for (const auto& pos : after_move_tail.snake) {
           after_snake_pos.push_back(pos);
         }
         log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
       }
       
-      if (unreachable_ref.any) {
+      if (unreachable_move_tail.any) {
+        if (path_size_diff > 0) {
+          // Use path planner to find extended path
+          auto extendedPath = path_planner.findExtendedPath(game, path, edge);
+          
+          if ((extendedPath.size() - path.size()) >= path_size_diff) {
+            if (log) {
+              log->add(game.turn, AgentLog::Key::safe_steps, extendedPath);  // i think we only want to log the detour steps here?
+            }
+            
+            path = std::move(extendedPath);
+            // recalculate_path = false;  // do this for the detour steps only?
+          }
+        }
         // Update metrics for unreachable cells
         if (metrics.first_unreachable_step == -1) {
           metrics.first_unreachable_step = game.turn;
@@ -204,14 +193,15 @@ public:
         
         // Count unreachable cells
         int unreachable_count = 0;
-        for (bool r : unreachable_ref.reachable) {
+        for (bool r : unreachable_move_tail.reachable) {
           if (!r) unreachable_count++;
         }
         metrics.cumulative_unreachable_cells += unreachable_count;
         
         if (log) {
           Grid<bool> unreachable_grid(game.dimensions());
-          std::transform(unreachable_ref.reachable.begin(), unreachable_ref.reachable.end(), unreachable_grid.begin(), [](bool r){ return !r; });
+          std::transform(unreachable_move_tail.reachable.begin(), unreachable_move_tail.reachable.end(), 
+                        unreachable_grid.begin(), [](bool r){ return !r; });
           log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
         }
         
@@ -226,12 +216,11 @@ public:
           }
         } else if (detour == DetourStrategy::nearest_unreachable) {
           // 3B: move to one of the unreachable coords
-          if (unreachable_ref.dist_to_nearest < INT_MAX) {
+          if (unreachable_move_tail.dist_to_nearest < INT_MAX) {
             // move to an unreachable coord first
-            next_step = first_step(dists, pos, unreachable_ref.nearest);
+            next_step = first_step(dists, pos, unreachable_move_tail.nearest);
             cached_path.clear();
-            if (log)
-            {
+            if (log) {
               // should probably log this below as well?
               logUnreachableMetrics(game, log);
             }
@@ -259,11 +248,6 @@ public:
     cached_path.pop_back();
     
     return next_step - pos;
-  }
-  
-  // Getter for the metrics
-  UnreachableMetrics getMetrics() const {
-    return metrics;
   }
 };
 

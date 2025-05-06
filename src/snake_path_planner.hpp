@@ -4,6 +4,7 @@
 #include "game_util.hpp"
 #include "shortest_path.hpp"
 #include "util.hpp"
+#include "cell_tree_utils.hpp"
 
 class SnakePathPlanner {
 public:
