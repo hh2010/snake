@@ -4,3 +4,5 @@ ideas/
 *.exe
 .vscode/
 *.log
+.DS_Store
+.github/
