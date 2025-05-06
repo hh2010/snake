@@ -1,2 +1,8 @@
 build/
 ideas/
+*.json
+*.exe
+.vscode/
+*.log
+.DS_Store
+.github/
