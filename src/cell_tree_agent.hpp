@@ -132,7 +132,7 @@ public:
       cached_path.pop_back();
       return pos2 - pos;
     }
-    recalculate_path = true;
+    // recalculate_path = true;
     // Find shortest path satisfying 1,2
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
     auto edge = [&](Coord a, Coord b, Dir dir) {
@@ -183,7 +183,7 @@ public:
       bool use_move_tail = (!unreachable_move_tail.any) & (unreachable.any);
       const GameBase& after_ref = use_move_tail ? after_move_tail : after;
       const Unreachables& unreachable_ref = use_move_tail ? unreachable_move_tail : unreachable;
-      recalculate_path = !use_move_tail;
+      // recalculate_path = !use_move_tail;
       
       // Store the "after" snake position for visualization
       if (log) {
@@ -232,6 +232,7 @@ public:
             cached_path.clear();
             if (log)
             {
+              // should probably log this below as well?
               logUnreachableMetrics(game, log);
             }
             return next_step - pos;
