@@ -76,6 +76,14 @@ struct Unreachables {
   Unreachables(Grid<bool> const& reachable)
     : reachable(reachable)
   {}
+  
+  int countUnreachableCells() const {
+    int count = 0;
+    for (bool r : reachable) {
+      if (!r) count++;
+    }
+    return count;
+  }
 };
 
 // Find parts of the grid that are unreachable from the snake's position

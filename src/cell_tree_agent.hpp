@@ -78,6 +78,23 @@ private:
   UnreachableMetrics metrics;
   SnakePathPlanner path_planner;
 
+  Coord handleInvalidNextStep(Coord next_step, std::vector<Coord>& path) {
+    if (next_step == INVALID) {
+      if (!cached_path.empty()) {
+        return cached_path.back();
+      } else {
+        // We somehow divided the grid into two parts.
+        // Hack: if we pretend that we are at the goal, then the code below will trigger
+        // because the current pos is unreachable from there.
+        // path == {apple_pos,INVALID};
+        path.pop_back();
+        return path.back();
+      }
+    }
+    return next_step;
+  }
+
+  // should these private functions be better organized?
   void logUnreachableMetrics(const Game& game, AgentLog* log) {
     std::vector<int> metrics_data = {
       metrics.first_unreachable_step,
@@ -88,7 +105,7 @@ private:
     log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
   }
 
-  void updateUnreachableMetrics(const Game& game, AgentLog* log, const CellTreeUnreachables& unreachable_move_tail) {
+  void updateUnreachableMetrics(const Game& game, AgentLog* log, const Unreachables& unreachable_move_tail) {
     // Update metrics for unreachable cells
     if (metrics.first_unreachable_step == -1) {
       metrics.first_unreachable_step = game.turn;
@@ -147,67 +164,62 @@ private:
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
     // int path_size_diff = cached_path.size() - path.size();  // need to make this 0 if the cached path was cleared on the previous turn
-    auto path_size_diff = extra_steps_desired;
-    path_planner.setExtraStepsDesired(path_size_diff);
+    // auto path_size_diff = extra_steps_desired;
+    path_planner.setExtraStepsDesired(extra_steps_desired);
     auto next_step = path.back();
 
-    if (path_size_diff > 0) {
-      std::cout << "shorter path found ";
-      std::cout << game.turn << std::endl;
-    }
+    // if (path_size_diff > 0) {
+    //   std::cout << "shorter path found ";
+    //   std::cout << game.turn << std::endl;
+    // }
     
     if (log) {
       auto path_copy = path;
-      path_copy.push_back(pos);
+      path_copy.push_back(pos); // do you even need to do this? i think it will just cut off at the grid in front of snake head?
       log->add(game.turn, AgentLog::Key::plan, std::move(path_copy));
     }
-    
-    if (next_step == INVALID) {
-      if (!cached_path.empty()) {
-        next_step = cached_path.back();
-      } else {
-        // We somehow divided the grid into two parts.
-        // Hack: if we pretend that we are at the goal, then the code below will trigger
-        // because the current pos is unreachable from there.
-        // path == {apple_pos,INVALID};
-        path.pop_back();
-        next_step = path.back();
-      }
-    }
+
+    next_step = handleInvalidNextStep(next_step, path);
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {
       // TODO: make this its own detour strategy rather than always doing it
-      // TODO: right now this only uses the new path if it clears all unreachables; might want to use if it clears some
-      auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
-      auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
+      GameBase after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
+      Unreachables unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
+
+      GameBase& after = after_move_tail;
+      Unreachables& unreachable = unreachable_move_tail;
       
       // auto after = after_moves(game, path, Lookahead::many_keep_tail);
       // auto unreachable = cell_tree_unreachables(after, dists);
       // Store the "after" snake position for visualization
       if (log) {
         std::vector<Coord> after_snake_pos;
-        for (const auto& pos : after_move_tail.snake) {
+        for (const auto& pos : after.snake) {
           after_snake_pos.push_back(pos);
         }
         log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
       }
       
-      if (unreachable_move_tail.any) {
-        if (path_size_diff > 0) {
-          // Use path planner to find extended path
-          auto extendedPath = path_planner.findExtendedPath(game, path, edge);
+      if (unreachable.any) {
+        if (extra_steps_desired > 0) {
+         std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with " 
+                << extra_steps_desired << " extra steps desired" << std::endl;
+          PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable, after);
           
-          if ((extendedPath.size() - path.size()) >= path_size_diff) {
-            if (log) {
-              log->add(game.turn, AgentLog::Key::safe_steps, extendedPath);  // i think we only want to log the detour steps here?
-            }
-            
-            path = std::move(extendedPath);
-            // recalculate_path = false;  // do this for the detour steps only?
+          // kinda inefficient to always log the plan twice, even when it doesnt change?
+          if (log) {
+            log->add(game.turn, AgentLog::Key::plan_extended, pathResult.path);
           }
+          
+          path = std::move(pathResult.path);
+          Unreachables& unreachable = pathResult.unreachables;
+          GameBase& after = pathResult.after;
         }
-        updateUnreachableMetrics(game, log, unreachable_move_tail);
+        updateUnreachableMetrics(game, log, unreachable);
+        detour = unreachable.any ? detour : DetourStrategy::none;
+        next_step = path.back();
+        next_step = handleInvalidNextStep(next_step, path);
         
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
@@ -220,9 +232,9 @@ private:
           }
         } else if (detour == DetourStrategy::nearest_unreachable) {
           // 3B: move to one of the unreachable coords
-          if (unreachable_move_tail.dist_to_nearest < INT_MAX) {
+          if (unreachable.dist_to_nearest < INT_MAX) {
             // move to an unreachable coord first
-            next_step = first_step(dists, pos, unreachable_move_tail.nearest);
+            next_step = first_step(dists, pos, unreachable.nearest);
             cached_path.clear();
             if (log) {
               // should probably log this below as well?
@@ -250,7 +262,6 @@ private:
     // use as new cached path
     cached_path = std::move(path);
     cached_path.pop_back();
-    
     return next_step - pos;
   }
 };

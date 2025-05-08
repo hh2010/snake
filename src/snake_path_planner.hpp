@@ -5,6 +5,7 @@
 #include "shortest_path.hpp"
 #include "util.hpp"
 #include "cell_tree_utils.hpp"
+#include "path_planning_result.hpp"
 
 class SnakePathPlanner {
 public:
@@ -18,6 +19,7 @@ public:
         return extra_steps_desired;
     }
     
+    // why is this function needed rather than justt calling after_moves directly?
     GameBase simulateGameAtPosition(const Game& game, const std::vector<Coord>& pathToPos) {
         return after_moves(game, pathToPos, Lookahead::many_move_tail);
     }
@@ -63,13 +65,15 @@ public:
         return newPath;
     }
     
-    std::vector<Coord> findExtendedPath(
+    PathPlanningResult findExtendedPath(
         const Game& game, 
-        const std::vector<Coord>& originalPath,
-        const std::function<int(Coord, Coord, Dir)>& edgeFunction) {
+        std::vector<Coord>& originalPath,
+        const std::function<int(Coord, Coord, Dir)>& edgeFunction,
+        Unreachables& originalUnreachable,
+        GameBase& originalAfter) {
             
         if (originalPath.size() <= 1) {
-            return originalPath;
+            return PathPlanningResult(originalPath, originalUnreachable, originalAfter);
         }
         
         std::vector<Coord> resultPath = originalPath;
@@ -84,6 +88,7 @@ public:
                 Coord currentPos = resultPath[resultPath.size() - 1 - i];
                 Coord nextPos = resultPath[resultPath.size() - 2 - i];
                 
+                // is this expensive? bc if so we can probably cache it rather than recreating every time?
                 std::vector<Coord> pathToDetourPos;
                 for (size_t j = resultPath.size() - 1; j >= resultPath.size() - 1 - i; j--) {
                     pathToDetourPos.push_back(resultPath[j]);
@@ -136,17 +141,15 @@ public:
             }
         }
         
-        if (totalExtraSteps >= extra_steps_desired) {
-            auto afterExtended = after_moves(game, resultPath, Lookahead::many_move_tail);
-            auto extendedDists = shortest_path(afterExtended.grid, afterExtended.snake_pos());
-            auto extendedUnreachable = cell_tree_unreachables(afterExtended, extendedDists);
-            
-            if (!extendedUnreachable.any) {
-                return resultPath;
-            }
+        auto afterExtended = after_moves(game, resultPath, Lookahead::many_move_tail);
+        auto extendedDists = shortest_path(afterExtended.grid, afterExtended.snake_pos());
+        auto extendedUnreachable = cell_tree_unreachables(afterExtended, extendedDists);
+
+        if (extendedUnreachable.countUnreachableCells() < originalUnreachable.countUnreachableCells()) {
+            return PathPlanningResult(resultPath, extendedUnreachable, afterExtended);
         }
         
-        return originalPath;
+        return PathPlanningResult(originalPath, originalUnreachable, originalAfter);
     }
     
 private:
