@@ -88,6 +88,29 @@ private:
     log->add(game.turn, AgentLog::Key::unreachable_metrics, metrics_data);
   }
 
+  void updateUnreachableMetrics(const Game& game, AgentLog* log, const CellTreeUnreachables& unreachable_move_tail) {
+    // Update metrics for unreachable cells
+    if (metrics.first_unreachable_step == -1) {
+      metrics.first_unreachable_step = game.turn;
+      metrics.length_at_first_unreachable = game.snake.size();
+    }
+    metrics.steps_with_unreachables++;
+    
+    // Count unreachable cells
+    int unreachable_count = 0;
+    for (bool r : unreachable_move_tail.reachable) {
+      if (!r) unreachable_count++;
+    }
+    metrics.cumulative_unreachable_cells += unreachable_count;
+    
+    if (log) {
+      Grid<bool> unreachable_grid(game.dimensions());
+      std::transform(unreachable_move_tail.reachable.begin(), unreachable_move_tail.reachable.end(), 
+                     unreachable_grid.begin(), [](bool r){ return !r; });
+      log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
+    }
+  }
+
   // Create edge function for path finding
   // TODO: i think this can be refractored to return an int
   std::function<int(Coord, Coord, Dir)> createEdgeFunction(const GameBase& game, const Grid<Coord>& cell_parents) {
@@ -184,26 +207,7 @@ private:
             // recalculate_path = false;  // do this for the detour steps only?
           }
         }
-        // Update metrics for unreachable cells
-        if (metrics.first_unreachable_step == -1) {
-          metrics.first_unreachable_step = game.turn;
-          metrics.length_at_first_unreachable = game.snake.size();
-        }
-        metrics.steps_with_unreachables++;
-        
-        // Count unreachable cells
-        int unreachable_count = 0;
-        for (bool r : unreachable_move_tail.reachable) {
-          if (!r) unreachable_count++;
-        }
-        metrics.cumulative_unreachable_cells += unreachable_count;
-        
-        if (log) {
-          Grid<bool> unreachable_grid(game.dimensions());
-          std::transform(unreachable_move_tail.reachable.begin(), unreachable_move_tail.reachable.end(), 
-                        unreachable_grid.begin(), [](bool r){ return !r; });
-          log->add(game.turn, AgentLog::Key::unreachable, unreachable_grid);
-        }
+        updateUnreachableMetrics(game, log, unreachable_move_tail);
         
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
