@@ -240,7 +240,6 @@ public:
         return false;
     }
     
-    // Evaluate if an extended path reduces unreachable cells
     PathPlanningResult evaluateExtendedPath(
         const Game& game,
         std::vector<Coord>& originalPath,
