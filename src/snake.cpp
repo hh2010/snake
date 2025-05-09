@@ -836,6 +836,7 @@ int main(int argc, const char** argv) {
     ShortestPathTimer::print_stats();
     AStarTimer::print_stats();
     UnreachableTimer::print_stats();
+    PathExtensionTimer::print_stats();
     
   } catch (std::exception const& e) {
     std::cerr << e.what() << std::endl;
