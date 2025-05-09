@@ -90,7 +90,6 @@ public:
                detourPos != nextPos;
     }
     
-    // Apply a detour move to a game state
     GameBase applyDetourMove(const GameBase& gameState, const Coord& detourPos) {
         auto newGameState = gameState;
         newGameState.snake.push_front(detourPos);
@@ -99,8 +98,7 @@ public:
         newGameState.snake.pop_back();
         return newGameState;
     }
-    
-    // Create a vector of coordinates from position in path to detour position
+
     std::vector<Coord> createPathToDetourPos(const std::vector<Coord>& path, size_t detourIndex) {
         std::vector<Coord> pathToDetourPos;
         for (size_t j = path.size() - 1; j >= path.size() - 1 - detourIndex; j--) {
@@ -108,22 +106,20 @@ public:
         }
         return pathToDetourPos;
     }
-    
-    // why is this function needed rather than justt calling after_moves directly?
-    // Find detours to extend path
+
     void findDetours(
         const Game& game,
         std::vector<Coord>& resultPath,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction
     ) {
         
-        // Initialize counters
         int totalExtraSteps = 0;
         int detourAttempts = 0;
         int detourFound = 0;
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
         
+        // def need optimization here. not sure how to think about "keep detouring" vs "detour once, reconnect, then detour again"
         while (totalExtraSteps < extra_steps_desired) {
             bool foundDetour = false;
             detourAttempts++;
@@ -139,17 +135,14 @@ public:
                 
                 std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
                 
-                // Build path to detour position
                 std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, i);
                 
-                // Simulate game state at this position
                 auto sim_start_time = std::chrono::high_resolution_clock::now();
-                auto gameAtDetourPos = simulateGameAtPosition(game, pathToDetourPos);
+                auto gameAtDetourPos = after_moves(game, pathToDetourPos, Lookahead::many_move_tail);
                 auto cell_parents = cell_tree_parents(gameAtDetourPos.dimensions(), gameAtDetourPos.snake);
                 auto sim_end_time = std::chrono::high_resolution_clock::now();
                 PathExtensionTimer::simulation_time += sim_end_time - sim_start_time;
                 
-                // Try to find a detour from current position
                 bool foundDetourHere = tryFindDetour(
                     game, 
                     gameAtDetourPos, 
@@ -189,7 +182,6 @@ public:
         std::cout << "Final path length: " << resultPath.size() << " (+" << totalExtraSteps << " steps)" << std::endl;
     }
     
-    // Attempt to find a detour from a specific position
     bool tryFindDetour(
         const Game& game,
         const GameBase& gameAtPos,
@@ -208,19 +200,17 @@ public:
             
             std::cout << "      Trying direction " << dir_name(dir) << " to " << detourPos;
             
-            // Check if detour is valid
             if (!isValidDetour(gameAtPos, currentPos, nextPos, detourPos, dir, cell_parents, game.apple_pos)) {
                 std::cout << " - Invalid move" << std::endl;
                 continue;
             }
             
-            // Apply detour move to game state
             auto gameAfterDetour = applyDetourMove(gameAtPos, detourPos);
             
             std::cout << " - Looking for reconnect path to " << nextPos << std::endl;
             
-            // Find reconnect path
             auto reconnect_start_time = std::chrono::high_resolution_clock::now();
+            // we may need a different edge function here? not sure its compatible with cell-variant
             auto reconnectPath = findReconnectPath(gameAfterDetour, detourPos, nextPos, edgeFunction);
             auto reconnect_end_time = std::chrono::high_resolution_clock::now();
             PathExtensionTimer::reconnect_time += reconnect_end_time - reconnect_start_time;
@@ -232,7 +222,7 @@ public:
             
             std::cout << "        Found reconnect path of length " << reconnectPath.size() << std::endl;
             
-            // Build new path with detour
+            // double check that all connections are in the same order as original path? i think snake head is first?
             std::vector<Coord> newPath = buildNewPath(resultPath, positionIndex, reconnectPath);
             int extraStepsAdded = newPath.size() - resultPath.size();
             
@@ -260,7 +250,6 @@ public:
         
         auto eval_start_time = std::chrono::high_resolution_clock::now();
         
-        // Simulate game after following the extended path
         auto afterExtended = after_moves(game, extendedPath, Lookahead::many_move_tail);
         auto extendedDists = shortest_path(afterExtended.grid, afterExtended.snake_pos());
         auto extendedUnreachable = cell_tree_unreachables(afterExtended, extendedDists);
@@ -270,7 +259,7 @@ public:
         
         int originalUnreachableCount = originalUnreachable.countUnreachableCells();
         int extendedUnreachableCount = extendedUnreachable.countUnreachableCells();
-        
+
         std::cout << "Original unreachable cells: " << originalUnreachableCount << std::endl;
         std::cout << "Extended unreachable cells: " << extendedUnreachableCount << std::endl;
         
@@ -281,10 +270,6 @@ public:
         
         std::cout << "Extended path does not improve unreachable cells, returning original path" << std::endl;
         return PathPlanningResult(originalPath, originalUnreachable, originalAfter);
-    }
-    
-    GameBase simulateGameAtPosition(const Game& game, const std::vector<Coord>& pathToPos) {
-        return after_moves(game, pathToPos, Lookahead::many_move_tail);
     }
     
     std::vector<Coord> findReconnectPath(
