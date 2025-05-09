@@ -14,9 +14,13 @@ find_package (Threads)
 
 add_executable(snake)
 
-file(GLOB_RECURSE sources src/*.cpp)
-target_sources(snake PRIVATE ${sources})
+file(GLOB_RECURSE snake_sources src/snake.cpp src/random.cpp)
+target_sources(snake PRIVATE ${snake_sources})
 target_link_libraries(${PROJECT_NAME} Threads::Threads)
+
+# astar coverage test executable
+add_executable(astar_coverage_test src/astar_coverage_test.cpp src/random.cpp)
+target_link_libraries(astar_coverage_test Threads::Threads)
 
 # warnings
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
