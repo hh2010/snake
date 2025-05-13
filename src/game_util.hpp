@@ -43,7 +43,9 @@ GameBase after_moves(GameBase const& game, std::vector<Coord> const& path, Looka
 struct Unreachables {
   bool any = false;
   Coord nearest = {-1,-1};
+  Coord farthest = {-1,-1};
   int dist_to_nearest = INT_MAX;
+  int dist_to_farthest = 0;
   Grid<bool> reachable;
   
   Unreachables(Grid<bool> const& reachable)
@@ -67,6 +69,10 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
       if (dists[a].dist < out.dist_to_nearest) {
         out.nearest = a;
         out.dist_to_nearest = dists[a].dist;
+      }
+      if (dists[a].dist > out.dist_to_farthest) {  // track the farthest unreachable coordinate
+        out.farthest = a;
+        out.dist_to_farthest = dists[a].dist;
       }
     }
   }
