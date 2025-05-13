@@ -180,7 +180,14 @@ public:
       auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
       auto unreachable = cell_tree_unreachables(after, dists);
       auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
-      bool use_move_tail = (!unreachable_move_tail.any) & (unreachable.any);
+      if ((unreachable_move_tail.any) && (unreachable.dist_to_farthest >= INT_MAX)) {
+        if (!cached_path.empty()) {
+          Coord pos2 = cached_path.back();
+          cached_path.pop_back();
+          return pos2 - pos;
+        }
+      }
+      bool use_move_tail = (!unreachable_move_tail.any);
       const GameBase& after_ref = use_move_tail ? after_move_tail : after;
       const Unreachables& unreachable_ref = use_move_tail ? unreachable_move_tail : unreachable;
       // recalculate_path = !use_move_tail;
