@@ -96,11 +96,11 @@ Unreachables get_unreachables_from_lookahead(
     Lookahead lookahead, 
     const Grid<Step>& dists) {
   if (lookahead == Lookahead::many_move_tail) {
-    auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
-    auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
+    auto after = after_moves(game, path, Lookahead::many_move_tail);
+    auto unreachable = cell_tree_unreachables(after, dists);
     
-    if (!unreachable_move_tail.any) {
-      return unreachable_move_tail;
+    if (!unreachable.any) {
+      return unreachable;
     } else {
       auto after_keep_tail = after_moves(game, path, Lookahead::many_keep_tail);
       auto unreachable_keep_tail = cell_tree_unreachables(after_keep_tail, dists);
