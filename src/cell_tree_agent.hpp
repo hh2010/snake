@@ -102,9 +102,9 @@ Unreachables get_unreachables_from_lookahead(
     if (!unreachable.any) {
       return unreachable;
     } else {
-      auto after_keep_tail = after_moves(game, path, Lookahead::many_keep_tail);
-      auto unreachable_keep_tail = cell_tree_unreachables(after_keep_tail, dists);
-      return unreachable_keep_tail;
+      auto after = after_moves(game, path, Lookahead::many_keep_tail);
+      auto unreachable = cell_tree_unreachables(after, dists);
+      return unreachable;
     }
   } else {
     auto after = after_moves(game, path, lookahead);
