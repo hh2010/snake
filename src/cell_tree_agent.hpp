@@ -73,7 +73,24 @@ Dir move_to_parent(Grid<Coord> const& cell_parents, Coord a) {
   throw "move_to_parent";
 }
 
-Unreachables& get_unreachables_from_lookahead(
+Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dists) {
+  auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
+  auto can_move = [&](Coord from, Coord to, Dir dir) {
+    return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
+  };
+  return unreachables(can_move, game, dists);
+}
+
+bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Lookahead lookahead, const std::vector<Coord>& cached_path) {
+  if (lookahead == Lookahead::many_move_tail) {
+    if ((unreachable.any) && (unreachable.dist_to_farthest >= INT_MAX) && !cached_path.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+Unreachables get_unreachables_from_lookahead(
     const GameBase& game, 
     const std::vector<Coord>& path, 
     Lookahead lookahead, 
@@ -94,23 +111,6 @@ Unreachables& get_unreachables_from_lookahead(
     auto unreachable = cell_tree_unreachables(after, dists);
     return unreachable;
   }
-}
-
-Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dists) {
-  auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
-  auto can_move = [&](Coord from, Coord to, Dir dir) {
-    return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
-  };
-  return unreachables(can_move, game, dists);
-}
-
-bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Lookahead lookahead, const std::vector<Coord>& cached_path) {
-  if (lookahead == Lookahead::many_move_tail) {
-    if ((unreachable.any) && (unreachable.dist_to_farthest >= INT_MAX) && !cached_path.empty()) {
-      return true;
-    }
-  }
-  return false;
 }
 
 enum class DetourStrategy {
@@ -188,7 +188,7 @@ public:
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {    
-      const Unreachables& unreachable = get_unreachables_from_lookahead(game, path, lookahead, dists);
+      const Unreachables unreachable = get_unreachables_from_lookahead(game, path, lookahead, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
         pos2 = cached_path.back();
         cached_path.pop_back();
