@@ -82,6 +82,15 @@ Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dist
   return unreachables(can_move, game, dists);
 }
 
+bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Lookahead lookahead, const std::vector<Coord>& cached_path) {
+  if (lookahead == Lookahead::many_move_tail) {
+    if ((unreachable.any) && (unreachable.dist_to_farthest >= INT_MAX) && !cached_path.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 enum class DetourStrategy {
   none,
   any,
@@ -175,17 +184,12 @@ public:
     }
     
     // Heuristic 3: prevent making parts of the grid unreachable
-    if (detour != DetourStrategy::none) {
-      auto after = after_moves(game, path, lookahead);
-      auto unreachable = cell_tree_unreachables(after, dists);
-      
-      // Store the "after" snake position for visualization
-      if (log) {
-        std::vector<Coord> after_snake_pos;
-        for (const auto& pos : after.snake) {
-          after_snake_pos.push_back(pos);
-        }
-        log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
+    if (detour != DetourStrategy::none) {    
+      const Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
+      if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
+        pos2 = cached_path.back();
+        cached_path.pop_back();
+        return pos2 - pos;
       }
       
       if (unreachable.any) {
