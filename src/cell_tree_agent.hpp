@@ -104,6 +104,15 @@ Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dist
   return unreachables(can_move, game, dists);
 }
 
+bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Lookahead lookahead, const std::vector<Coord>& cached_path) {
+  if (lookahead == Lookahead::many_move_tail) {
+    if ((unreachable.any) && (unreachable.dist_to_farthest >= INT_MAX) && !cached_path.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 enum class DetourStrategy {
   none,
   any,
@@ -180,6 +189,11 @@ public:
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {    
       const Unreachables& unreachable = get_unreachables_from_lookahead(game, path, lookahead, dists);
+      if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
+        pos2 = cached_path.back();
+        cached_path.pop_back();
+        return pos2 - pos;
+      }
       
       if (unreachable.any) {
         if (log) {
