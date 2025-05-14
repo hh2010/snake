@@ -73,7 +73,6 @@ Dir move_to_parent(Grid<Coord> const& cell_parents, Coord a) {
   throw "move_to_parent";
 }
 
-
 Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dists) {
   auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
   auto can_move = [&](Coord from, Coord to, Dir dir) {
@@ -89,6 +88,29 @@ bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Looka
     }
   }
   return false;
+}
+
+Unreachables get_unreachables_from_lookahead(
+    const GameBase& game, 
+    const std::vector<Coord>& path, 
+    Lookahead lookahead, 
+    const Grid<Step>& dists) {
+  if (lookahead == Lookahead::many_move_tail) {
+    auto after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
+    auto unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
+    
+    if (!unreachable_move_tail.any) {
+      return unreachable_move_tail;
+    } else {
+      auto after_keep_tail = after_moves(game, path, Lookahead::many_keep_tail);
+      auto unreachable_keep_tail = cell_tree_unreachables(after_keep_tail, dists);
+      return unreachable_keep_tail;
+    }
+  } else {
+    auto after = after_moves(game, path, lookahead);
+    auto unreachable = cell_tree_unreachables(after, dists);
+    return unreachable;
+  }
 }
 
 enum class DetourStrategy {
