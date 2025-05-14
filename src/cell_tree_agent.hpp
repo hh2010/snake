@@ -90,7 +90,7 @@ bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Looka
   return false;
 }
 
-Unreachables get_unreachables_from_lookahead(
+Unreachables get_unreachables(
     const GameBase& game, 
     const std::vector<Coord>& path, 
     Lookahead lookahead, 
