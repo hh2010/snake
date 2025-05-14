@@ -70,7 +70,9 @@ int UnreachableTimer::call_count = 0;
 struct Unreachables {
   bool any = false;
   Coord nearest = {-1,-1};
+  Coord farthest = {-1,-1};
   int dist_to_nearest = INT_MAX;
+  int dist_to_farthest = 0;
   Grid<bool> reachable;
   
   Unreachables(Grid<bool> const& reachable)
@@ -104,6 +106,10 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
       if (dists[a].dist < out.dist_to_nearest) {  // so the first unreachable in the coordinate search is used; we should be going to a safe one
         out.nearest = a;
         out.dist_to_nearest = dists[a].dist;
+      }
+      if (dists[a].dist > out.dist_to_farthest) {  // track the farthest unreachable coordinate
+        out.farthest = a;
+        out.dist_to_farthest = dists[a].dist;
       }
     }
   }

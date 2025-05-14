@@ -149,6 +149,50 @@ private:
     };
   }
 
+  bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Lookahead lookahead, const std::vector<Coord>& cached_path) {
+    if (lookahead == Lookahead::many_move_tail) {
+      if ((unreachable.any) && (unreachable.dist_to_farthest >= INT_MAX) && !cached_path.empty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Unreachables get_unreachables(
+      const GameBase& game, 
+      const std::vector<Coord>& path, 
+      Lookahead lookahead, 
+      const Grid<Step>& dists) {
+    if (lookahead == Lookahead::many_move_tail) {
+      auto after = after_moves(game, path, Lookahead::many_move_tail);
+      auto unreachable = cell_tree_unreachables(after, dists);
+
+      if (!unreachable.any) {
+        return unreachable;
+      } else {
+        auto after = after_moves(game, path, Lookahead::many_keep_tail);
+        auto unreachable = cell_tree_unreachables(after, dists);
+        return unreachable;
+      }
+    } else {
+      auto after = after_moves(game, path, lookahead);
+      auto unreachable = cell_tree_unreachables(after, dists);
+      return unreachable;
+    }
+  }
+
+  // figure out if i even need this
+  // void logAfterSnakePosition(const Game& game, AgentLog* log, const GameBase& after) {
+  //   // Store the "after" snake position for visualization
+  //   if (log) {
+  //     std::vector<Coord> after_snake_pos;
+  //     for (const auto& pos : after.snake) {
+  //       after_snake_pos.push_back(pos);
+  //     }
+  //     log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
+  //   }
+  // }
+
   Dir operator () (Game const& game, AgentLog* log = nullptr) override {    
     Coord pos = game.snake_pos();
     if (!cached_path.empty() && !recalculate_path) {
@@ -183,39 +227,30 @@ private:
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {
-      // TODO: make this its own detour strategy rather than always doing it
-      GameBase after_move_tail = after_moves(game, path, Lookahead::many_move_tail);
-      Unreachables unreachable_move_tail = cell_tree_unreachables(after_move_tail, dists);
-
-      GameBase& after = after_move_tail;
-      Unreachables& unreachable = unreachable_move_tail;
-      
-      // auto after = after_moves(game, path, Lookahead::many_keep_tail);
-      // auto unreachable = cell_tree_unreachables(after, dists);
-      // Store the "after" snake position for visualization
-      if (log) {
-        std::vector<Coord> after_snake_pos;
-        for (const auto& pos : after.snake) {
-          after_snake_pos.push_back(pos);
-        }
-        log->add(game.turn, AgentLog::Key::after_snake, after_snake_pos);
+      Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
+      if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
+        Coord pos2 = cached_path.back();
+        cached_path.pop_back();
+        return pos2 - pos;
       }
       
       if (unreachable.any) {
         if (extra_steps_desired > 0) {
          std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with " 
                 << extra_steps_desired << " extra steps desired" << std::endl;
-          PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable, after);
+          PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
+        
           
-          // kinda inefficient to always log the plan twice, even when it doesnt change?
-          if (log) {
-            log->add(game.turn, AgentLog::Key::plan_extended, pathResult.path);
-          }
+        //   TODO: Decide what to do about this logging
+        //   // kinda inefficient to always log the plan twice, even when it doesnt change?
+        //   if (log) {
+        //     log->add(game.turn, AgentLog::Key::plan_extended, pathResult.path);
+        //   }
           
-          path = std::move(pathResult.path);
-          Unreachables& unreachable = pathResult.unreachables;
-          GameBase& after = pathResult.after;
-        }
+        //   path = std::move(pathResult.path);
+        //   Unreachables& unreachable = pathResult.unreachables;
+        //   GameBase& after = pathResult.after;
+        // }
         updateUnreachableMetrics(game, log, unreachable);
         detour = unreachable.any ? detour : DetourStrategy::none;
         next_step = path.back();

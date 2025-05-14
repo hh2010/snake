@@ -7,9 +7,7 @@
 struct PathPlanningResult {
     std::vector<Coord>& path;
     Unreachables& unreachables;
-    GameBase& after;
-
     
-    PathPlanningResult(std::vector<Coord>& p, Unreachables& u, GameBase& a)
-        : path(p), unreachables(u), after(a) {}
+    PathPlanningResult(std::vector<Coord>& p, Unreachables& u)
+        : path(p), unreachables(u) {}
 };

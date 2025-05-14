@@ -101,7 +101,9 @@ public:
 
     std::vector<Coord> createPathToDetourPos(const std::vector<Coord>& path, size_t detourIndex) {
         std::vector<Coord> pathToDetourPos;
-        for (size_t j = path.size() - 1; j >= path.size() - 1 - detourIndex; j--) {
+        pathToDetourPos.reserve(detourIndex + 1);
+        
+        for (size_t j = path.size() - 1 - detourIndex; j < path.size() - 1; j++) {
             pathToDetourPos.push_back(path[j]);
         }
         return pathToDetourPos;
@@ -116,6 +118,7 @@ public:
         int totalExtraSteps = 0;
         int detourAttempts = 0;
         int detourFound = 0;
+        Coord currentPos = game.snake_pos();
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
         
@@ -130,8 +133,8 @@ public:
             for (size_t i = 0; i < resultPath.size() - 1; i++) {
                 if (i == resultPath.size() - 1) continue;
                 
-                Coord currentPos = resultPath[resultPath.size() - 1 - i];
-                Coord nextPos = resultPath[resultPath.size() - 2 - i];
+                Coord nextPos = resultPath[resultPath.size() - 1 - i];  // maybe it can be initiatlized like this but this is not accurate. the coord for next pos has to be retturned from tryFindDetour. depending if you want to keep detouring or just detour once (maybe a param?)
+                // should we detour immediately or take the first step and then choose a detour? the former makes this part annoying. what if you access index -1? what happens?
                 
                 std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
                 
@@ -153,6 +156,9 @@ public:
                     resultPath, 
                     i, 
                     totalExtraSteps);
+                
+
+                Coord currentPos = nextPos;
                     
                 if (foundDetourHere) {
                     foundDetour = true;
@@ -245,8 +251,7 @@ public:
         std::vector<Coord>& originalPath,
         std::vector<Coord>& extendedPath,
         Unreachables& originalUnreachable,
-        GameBase& originalAfter,
-        const std::function<int(Coord, Coord, Dir)>& edgeFunction) {
+            const std::function<int(Coord, Coord, Dir)>& edgeFunction) {
         
         auto eval_start_time = std::chrono::high_resolution_clock::now();
         
@@ -271,11 +276,11 @@ public:
         
         if (extendedUnreachableCount < originalUnreachableCount) {
             std::cout << "Extended path reduces unreachable cells, returning extended path" << std::endl;
-            return PathPlanningResult(extendedPath, extendedUnreachable, afterExtended);
+            return PathPlanningResult(extendedPath, extendedUnreachable);
         }
         
         std::cout << "Extended path does not improve unreachable cells, returning original path" << std::endl;
-        return PathPlanningResult(originalPath, originalUnreachable, originalAfter);
+        return PathPlanningResult(originalPath, originalUnreachable);
     }
     
     std::vector<Coord> findReconnectPath(
@@ -323,8 +328,7 @@ public:
         const Game& game, 
         std::vector<Coord>& originalPath,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction,
-        Unreachables& originalUnreachable,
-        GameBase& originalAfter) {
+        Unreachables& originalUnreachable) {
             
         auto start_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::call_count++;
@@ -337,13 +341,13 @@ public:
             std::cout << "Path too short, returning original" << std::endl;
             auto end_time = std::chrono::high_resolution_clock::now();
             PathExtensionTimer::total_time += end_time - start_time;
-            return PathPlanningResult(originalPath, originalUnreachable, originalAfter);
+            return PathPlanningResult(originalPath, originalUnreachable);
         }
         
         std::vector<Coord> resultPath = originalPath;
         
         findDetours(game, resultPath, edgeFunction);        
-        auto evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, originalAfter, edgeFunction);
+        PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
 
         auto end_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::total_time += end_time - start_time;
