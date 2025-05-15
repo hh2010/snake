@@ -118,11 +118,11 @@ public:
         int totalExtraSteps = 0;
         int detourAttempts = 0;
         int detourFound = 0;
-        Coord currentPos = game.snake_pos();
+        std::vector<Coord> originalPath = resultPath;
+        Coord nextPos = game.snake_pos();
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
-        
-        // def need optimization here. not sure how to think about "keep detouring" vs "detour once, reconnect, then detour again"
+
         while (totalExtraSteps < extra_steps_desired) {
             bool foundDetour = false;
             detourAttempts++;
@@ -130,12 +130,12 @@ public:
             std::cout << "  Searching for detour (iteration " << detourAttempts 
                       << "), current extra steps: " << totalExtraSteps << "/" << extra_steps_desired << std::endl;
             
-            for (size_t i = 0; i < resultPath.size() - 1; i++) {
+            for (size_t i = 0; i <= resultPath.size() - 1; ++i) {
                 if (i == resultPath.size() - 1) continue;
-                
-                Coord nextPos = resultPath[resultPath.size() - 1 - i];  // maybe it can be initiatlized like this but this is not accurate. the coord for next pos has to be retturned from tryFindDetour. depending if you want to keep detouring or just detour once (maybe a param?)
-                // should we detour immediately or take the first step and then choose a detour? the former makes this part annoying. what if you access index -1? what happens?
-                
+
+                Coord currentPos = nextPos;
+                Coord nextPos = originalPath[originalPath.size() - 1 - i];
+
                 std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
                 
                 std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, i);
@@ -156,13 +156,11 @@ public:
                     resultPath, 
                     i, 
                     totalExtraSteps);
-                
 
-                Coord currentPos = nextPos;
-                    
                 if (foundDetourHere) {
                     foundDetour = true;
                     detourFound++;
+                    std::cout << "    Found detour at position " << i << std::endl;
                     break;
                 }
                 
@@ -199,10 +197,8 @@ public:
         size_t positionIndex,
         int& totalExtraSteps) {
         
-        int dirAttempts = 0;
         for (auto dir : dirs) {
             Coord detourPos = currentPos + dir;
-            dirAttempts++;
             
             std::cout << "      Trying direction " << dir_name(dir) << " to " << detourPos;
             
@@ -228,7 +224,6 @@ public:
             
             std::cout << "        Found reconnect path of length " << reconnectPath.size() << std::endl;
             
-            // double check that all connections are in the same order as original path? i think snake head is first?
             std::vector<Coord> newPath = buildNewPath(resultPath, positionIndex, reconnectPath);
             int extraStepsAdded = newPath.size() - resultPath.size();
             
@@ -239,7 +234,6 @@ public:
             resultPath = newPath;
             PathExtensionTimer::successful_detours++;
             
-            std::cout << "    Found detour after " << dirAttempts << " direction attempts" << std::endl;
             return true;
         }
         

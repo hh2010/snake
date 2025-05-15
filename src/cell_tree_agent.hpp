@@ -224,7 +224,7 @@ private:
     }
 
     next_step = handleInvalidNextStep(next_step, path);
-    
+
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {
       Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
@@ -233,24 +233,23 @@ private:
         cached_path.pop_back();
         return pos2 - pos;
       }
-      
+
       if (unreachable.any) {
         if (extra_steps_desired > 0) {
-         std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with " 
+          std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
                 << extra_steps_desired << " extra steps desired" << std::endl;
           PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
         
-          
+
         //   TODO: Decide what to do about this logging
         //   // kinda inefficient to always log the plan twice, even when it doesnt change?
         //   if (log) {
         //     log->add(game.turn, AgentLog::Key::plan_extended, pathResult.path);
         //   }
-          
-        //   path = std::move(pathResult.path);
-        //   Unreachables& unreachable = pathResult.unreachables;
-        //   GameBase& after = pathResult.after;
-        // }
+
+          path = std::move(pathResult.path);
+          Unreachables& unreachable = pathResult.unreachables;
+        }
         updateUnreachableMetrics(game, log, unreachable);
         detour = unreachable.any ? detour : DetourStrategy::none;
         next_step = path.back();
@@ -293,7 +292,7 @@ private:
         }
       }
     }
-    
+
     // use as new cached path
     cached_path = std::move(path);
     cached_path.pop_back();
