@@ -232,7 +232,7 @@ private:
           if (!r) unreachable_count++;
         }
         int steps_to_clear_unreachables = unreachable.dist_to_farthest + unreachable_count;
-        int extra_steps_desired = steps_to_clear_unreachables / 2;
+        int extra_steps_desired = std::min(10, steps_to_clear_unreachables / 2);
 
         if (extra_steps_desired > 0) {
           std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
