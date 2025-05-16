@@ -51,7 +51,7 @@ struct UnreachableMetrics {
   int length_at_first_unreachable = 0;
 };
 
-struct CellTreeAgent : Agent {
+struct CellTreeAgent : public Agent {
 public:
   // config
   bool recalculate_path = true;
@@ -248,14 +248,14 @@ private:
         //   }
 
         path = std::move(pathResult.path);
-        Unreachables& unreachable = pathResult.unreachables;
-        }
-        updateUnreachableMetrics(game, log, unreachable);
-        detour = unreachable.any ? detour : DetourStrategy::none;
-        next_step = path.back();
-        next_step = handleInvalidNextStep(next_step, path);
-        
-        if (detour == DetourStrategy::any) {
+        // Don't assign unreachable = pathResult.unreachables as it can cause issues
+      }
+      updateUnreachableMetrics(game, log, unreachable);
+      detour = unreachable.any ? detour : DetourStrategy::none;
+      next_step = path.back();
+      next_step = handleInvalidNextStep(next_step, path);
+
+      if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
           for (auto dir : dirs) {
             if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
@@ -291,7 +291,6 @@ private:
           std::cout << "Unreachable grid points (will) exist, but no alternative moves or cached path" << std::endl;
         }
       }
-    }
 
     // use as new cached path
     cached_path = std::move(path);
