@@ -233,12 +233,12 @@ private:
         }
         int steps_to_clear_unreachables = unreachable.dist_to_farthest + unreachable_count;
         int extra_steps_desired = std::min(10, steps_to_clear_unreachables / 2);
+        assert(extra_steps_desired > 0);
 
-        if (extra_steps_desired > 0) {
-          std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
-                << extra_steps_desired << " extra steps desired" << std::endl;
-          path_planner.setExtraStepsDesired(extra_steps_desired);
-          PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
+        std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
+              << extra_steps_desired << " extra steps desired" << std::endl;
+        path_planner.setExtraStepsDesired(extra_steps_desired);
+        PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
         
 
         //   TODO: Decide what to do about this logging
@@ -247,8 +247,8 @@ private:
         //     log->add(game.turn, AgentLog::Key::plan_extended, pathResult.path);
         //   }
 
-          path = std::move(pathResult.path);
-          Unreachables& unreachable = pathResult.unreachables;
+        path = std::move(pathResult.path);
+        Unreachables& unreachable = pathResult.unreachables;
         }
         updateUnreachableMetrics(game, log, unreachable);
         detour = unreachable.any ? detour : DetourStrategy::none;
