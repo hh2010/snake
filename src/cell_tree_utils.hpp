@@ -44,12 +44,22 @@ Dir move_to_parent(Grid<Coord> const& cell_parents, Coord a) {
   throw "move_to_parent";
 }
 
+// Overload that takes a distance grid
 Unreachables cell_tree_unreachables(GameBase const& game, Grid<Step> const& dists) {
   auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
   auto can_move = [&](Coord from, Coord to, Dir dir) {
     return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
   };
   return unreachables(can_move, game, dists);
+}
+
+// Overload that doesn't require a distance grid
+Unreachables cell_tree_unreachables(GameBase const& game) {
+  auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
+  auto can_move = [&](Coord from, Coord to, Dir dir) {
+    return can_move_in_cell_tree(cell_parents, from, to, dir) && !game.grid[to];
+  };
+  return unreachables(can_move, game);
 }
 
 #endif // CELL_TREE_UTILS_HPP

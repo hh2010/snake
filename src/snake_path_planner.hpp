@@ -250,14 +250,7 @@ public:
         auto eval_start_time = std::chrono::high_resolution_clock::now();
         
         auto afterExtended = after_moves(game, extendedPath, Lookahead::many_move_tail);
-        auto extendedDists = astar_shortest_path(
-            afterExtended.grid.coords(),
-            edgeFunction,
-            afterExtended.snake_pos(),
-            game.apple_pos,
-            1
-        );
-        auto extendedUnreachable = cell_tree_unreachables(afterExtended, extendedDists);
+        auto extendedUnreachable = cell_tree_unreachables(afterExtended);
         
         auto eval_end_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::simulation_time += eval_end_time - eval_start_time;
@@ -340,7 +333,7 @@ public:
         
         std::vector<Coord> resultPath = originalPath;
         
-        findDetours(game, resultPath, edgeFunction);        
+        findDetours(game, resultPath, edgeFunction);
         PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
 
         auto end_time = std::chrono::high_resolution_clock::now();

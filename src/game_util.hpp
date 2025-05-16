@@ -103,6 +103,7 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
       out.reachable[a] = true; // count grid cells containing the snake as reachable
     } else if (!out.reachable[a]) {
       out.any = true;
+
       if (dists[a].dist < out.dist_to_nearest) {  // so the first unreachable in the coordinate search is used; we should be going to a safe one
         out.nearest = a;
         out.dist_to_nearest = dists[a].dist;
@@ -111,6 +112,30 @@ Unreachables unreachables(CanMove can_move, GameLike const& game, Grid<Step> con
         out.farthest = a;
         out.dist_to_farthest = dists[a].dist;
       }
+    }
+  }
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  UnreachableTimer::total_time += end_time - start_time;
+  UnreachableTimer::call_count++;
+  
+  return out;
+}
+
+// Overload that doesn't require a distance grid
+// This version won't set the nearest/farthest unreachable cells
+template <typename CanMove, typename GameLike>
+Unreachables unreachables(CanMove can_move, GameLike const& game) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
+  // are there unreachable coords?
+  Unreachables out = flood_fill(game.dimensions(), can_move, game.snake_pos());
+  for (auto a : game.grid.coords()) {
+    if (game.grid[a]) {
+      out.reachable[a] = true; // count grid cells containing the snake as reachable
+    } else if (!out.reachable[a]) {
+      out.any = true;
+      // We don't set nearest/farthest here as we don't have distance information
     }
   }
   
