@@ -57,7 +57,6 @@ public:
   bool recalculate_path = true;
   Lookahead lookahead = Lookahead::many_keep_tail;
   DetourStrategy detour = DetourStrategy::nearest_unreachable;
-  int extra_steps_desired = 0;
   // penalties
   int same_cell_penalty = 0;
   int new_cell_penalty = 0;
@@ -66,7 +65,7 @@ public:
   int wall_penalty_in = 0, wall_penalty_out = 0;
   int open_penalty_in = 0, open_penalty_out = 0;
 
-  CellTreeAgent() : path_planner(extra_steps_desired) {}
+  CellTreeAgent() : path_planner(0) {}
 
   // Getter for the metrics
   UnreachableMetrics getMetrics() const {
@@ -207,15 +206,7 @@ private:
     auto edge = createEdgeFunction(game, cell_parents);
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
-    // int path_size_diff = cached_path.size() - path.size();  // need to make this 0 if the cached path was cleared on the previous turn
-    // auto path_size_diff = extra_steps_desired;
-    path_planner.setExtraStepsDesired(extra_steps_desired);
     auto next_step = path.back();
-
-    // if (path_size_diff > 0) {
-    //   std::cout << "shorter path found ";
-    //   std::cout << game.turn << std::endl;
-    // }
     
     if (log) {
       auto path_copy = path;
@@ -235,9 +226,18 @@ private:
       }
 
       if (unreachable.any) {
+        // Calculate steps_to_clear_unreachables based on unreachable cells
+        int unreachable_count = 0;
+        for (bool r : unreachable.reachable) {
+          if (!r) unreachable_count++;
+        }
+        int steps_to_clear_unreachables = unreachable.dist_to_farthest + unreachable_count;
+        int extra_steps_desired = steps_to_clear_unreachables / 2;
+
         if (extra_steps_desired > 0) {
           std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
                 << extra_steps_desired << " extra steps desired" << std::endl;
+          path_planner.setExtraStepsDesired(extra_steps_desired);
           PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
         
 
