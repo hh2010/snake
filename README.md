@@ -53,7 +53,7 @@ Currently does not include "nascar" or "applefear" modes.
 
 ## Results
 
-Number of steps to finish the game on a 20×20 grid (over 100 runs)
+Number of steps to finish the game on a 30×30 grid (over 100 runs)
 
 |agent          |mean     |stddev   |min      |q.25     |median   |q.75     |max      |lost      |
 |---------------|---------|---------|---------|---------|---------|---------|---------|----------|
