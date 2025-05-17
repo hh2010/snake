@@ -239,7 +239,6 @@ private:
               << extra_steps_desired << " extra steps desired" << std::endl;
         path_planner.setExtraStepsDesired(extra_steps_desired);
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
-        
 
         //   TODO: Decide what to do about this logging
         //   // kinda inefficient to always log the plan twice, even when it doesnt change?
@@ -249,53 +248,51 @@ private:
 
         path = std::move(pathResult.path);
         // Don't assign unreachable = pathResult.unreachables as it can cause issues
-      }
-      updateUnreachableMetrics(game, log, unreachable);
-      detour = unreachable.any ? detour : DetourStrategy::none;
-      next_step = path.back();
-      next_step = handleInvalidNextStep(next_step, path);
+        updateUnreachableMetrics(game, log, unreachable);
+        detour = unreachable.any ? detour : DetourStrategy::none;
+        next_step = path.back();
+        next_step = handleInvalidNextStep(next_step, path);
 
-      if (detour == DetourStrategy::any) {
-          // 3A: move in any other direction
-          for (auto dir : dirs) {
-            if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
-              //std::cout << game << "Moving " << dir << " instead of " << (pos2-pos) << " to avoid unreachables" << std::endl;
+        if (detour == DetourStrategy::any) {
+            // 3A: move in any other direction
+            for (auto dir : dirs) {
+              if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
+                //std::cout << game << "Moving " << dir << " instead of " << (pos2-pos) << " to avoid unreachables" << std::endl;
+                cached_path.clear();
+                return dir;
+              }
+            }
+          } else if (detour == DetourStrategy::nearest_unreachable) {
+            // 3B: move to one of the unreachable coords
+            if (unreachable.dist_to_nearest < INT_MAX) {
+              // move to an unreachable coord first
+              next_step = first_step(dists, pos, unreachable.nearest);
               cached_path.clear();
-              return dir;
+              if (log) {
+                // should probably log this below as well?
+                logUnreachableMetrics(game, log);
+              }
+              return next_step - pos;
+            }
+            // failed to find detour
+            // This can happen because it previously looked like everything would be reachable upon reaching the apple,
+            // but moving the snake's tail opened up a shorter path
+            // Solution: just continue along previous path
+            if (!cached_path.empty()) {
+              next_step = cached_path.back();
+              cached_path.pop_back();
+              return next_step - pos;
             }
           }
-        } else if (detour == DetourStrategy::nearest_unreachable) {
-          // 3B: move to one of the unreachable coords
-          if (unreachable.dist_to_nearest < INT_MAX) {
-            // move to an unreachable coord first
-            next_step = first_step(dists, pos, unreachable.nearest);
-            cached_path.clear();
-            if (log) {
-              // should probably log this below as well?
-              logUnreachableMetrics(game, log);
-            }
-            return next_step - pos;
+          if (0) {
+            std::cout << game;
+            std::cout << "Unreachable grid points (will) exist, but no alternative moves or cached path" << std::endl;
           }
-          // failed to find detour
-          // This can happen because it previously looked like everything would be reachable upon reaching the apple,
-          // but moving the snake's tail opened up a shorter path
-          // Solution: just continue along previous path
-          if (!cached_path.empty()) {
-            next_step = cached_path.back();
-            cached_path.pop_back();
-            return next_step - pos;
-          }
-        }
-        if (0) {
-          std::cout << game;
-          std::cout << "Unreachable grid points (will) exist, but no alternative moves or cached path" << std::endl;
         }
       }
-
     // use as new cached path
     cached_path = std::move(path);
     cached_path.pop_back();
     return next_step - pos;
   }
 };
-
