@@ -231,9 +231,9 @@ private:
         for (bool r : unreachable.reachable) {
           if (!r) unreachable_count++;
         }
-        int steps_to_clear_unreachables = unreachable.dist_to_farthest + unreachable_count;
+        int steps_to_clear_unreachables = unreachable.dist_to_farthest == INT_MAX ? INT_MAX : unreachable.dist_to_farthest + unreachable_count;
         int extra_steps_desired = std::min(10, steps_to_clear_unreachables / 2);
-        assert(extra_steps_desired > 0);
+        assert(extra_steps_desired >= 0);
 
         std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
               << extra_steps_desired << " extra steps desired" << std::endl;

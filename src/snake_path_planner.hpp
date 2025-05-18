@@ -316,14 +316,19 @@ public:
         std::vector<Coord>& originalPath,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction,
         Unreachables& originalUnreachable) {
-            
+
+        if (extra_steps_desired == 0) {
+            std::cout << "No extra steps desired, returning original path" << std::endl;
+            return PathPlanningResult(originalPath, originalUnreachable);
+        }
+
         auto start_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::call_count++;
         
         std::cout << "Turn " << game.turn << ": Finding extended path, desired extra steps: " << extra_steps_desired << std::endl;
         std::cout << "Original path size: " << originalPath.size() << std::endl;
         std::cout << "Original unreachable cells: " << originalUnreachable.countUnreachableCells() << std::endl;
-        
+
         if (originalPath.size() <= 1) {
             std::cout << "Path too short, returning original" << std::endl;
             auto end_time = std::chrono::high_resolution_clock::now();
