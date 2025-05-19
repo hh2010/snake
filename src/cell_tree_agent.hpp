@@ -248,8 +248,8 @@ private:
 
         path = std::move(pathResult.path);
         // Don't assign unreachable = pathResult.unreachables as it can cause issues
-        updateUnreachableMetrics(game, log, unreachable);
-        detour = unreachable.any ? detour : DetourStrategy::none;
+        updateUnreachableMetrics(game, log, pathResult.unreachable);
+        detour = pathResult.unreachable.any ? detour : DetourStrategy::none;
         next_step = path.back();
         next_step = handleInvalidNextStep(next_step, path);
 
@@ -264,9 +264,9 @@ private:
             }
           } else if (detour == DetourStrategy::nearest_unreachable) {
             // 3B: move to one of the unreachable coords
-            if (unreachable.dist_to_nearest < INT_MAX) {
+            if (pathResult.unreachable.dist_to_nearest < INT_MAX) {
               // move to an unreachable coord first
-              next_step = first_step(dists, pos, unreachable.nearest);
+              next_step = first_step(dists, pos, pathResult.unreachable.nearest);
               cached_path.clear();
               if (log) {
                 // should probably log this below as well?

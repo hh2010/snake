@@ -5,9 +5,9 @@
 #include <vector>
 
 struct PathPlanningResult {
-    std::vector<Coord>& path;
-    Unreachables& unreachables;
+    std::vector<Coord> path;
+    Unreachables unreachable;
     
-    PathPlanningResult(std::vector<Coord>& p, Unreachables& u)
-        : path(p), unreachables(u) {}
+    PathPlanningResult(std::vector<Coord> p, Unreachables u)
+        : path(p), unreachable(u) {}
 };
