@@ -95,7 +95,7 @@ public:
         newGameState.snake.push_front(detourPos);
         newGameState.grid[detourPos] = true;
         newGameState.grid[newGameState.snake.back()] = false;
-        newGameState.snake.pop_back();
+        newGameState.snake.pop_back();  // this should probably only be if lookahead == many_move_tail
         return newGameState;
     }
 
@@ -103,7 +103,7 @@ public:
         std::vector<Coord> pathToDetourPos;
         pathToDetourPos.reserve(detourIndex + 1);
         
-        for (size_t j = path.size() - 1 - detourIndex; j < path.size() - 1; j++) {
+        for (size_t j = path.size() - detourIndex; j < path.size(); j++) {
             pathToDetourPos.push_back(path[j]);
         }
         return pathToDetourPos;
@@ -134,27 +134,28 @@ public:
                 if (i == resultPath.size() - 1) continue;
 
                 Coord currentPos = nextPos;
-                Coord nextPos = originalPath[originalPath.size() - 1 - i];
+                nextPos = originalPath[originalPath.size() - 1 - i];
 
                 std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
-                
+                std::cout << resultPath << std::endl;
                 std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, i);
+                std::cout << pathToDetourPos << std::endl;
                 
                 auto sim_start_time = std::chrono::high_resolution_clock::now();
-                auto gameAtDetourPos = after_moves(game, pathToDetourPos, Lookahead::many_move_tail);
-                auto cell_parents = cell_tree_parents(gameAtDetourPos.dimensions(), gameAtDetourPos.snake);
+                auto afterAtDetourPos = (i > 0) ? after_moves(game, pathToDetourPos, Lookahead::many_move_tail) : GameBase(game);
+                auto cell_parents = cell_tree_parents(afterAtDetourPos.dimensions(), afterAtDetourPos.snake);
                 auto sim_end_time = std::chrono::high_resolution_clock::now();
                 PathExtensionTimer::simulation_time += sim_end_time - sim_start_time;
                 
                 bool foundDetourHere = tryFindDetour(
-                    game, 
-                    gameAtDetourPos, 
-                    currentPos, 
-                    nextPos, 
-                    cell_parents, 
-                    edgeFunction, 
-                    resultPath, 
-                    i, 
+                    game,
+                    afterAtDetourPos,
+                    currentPos,
+                    nextPos,
+                    cell_parents,
+                    edgeFunction,
+                    resultPath,
+                    i,
                     totalExtraSteps);
 
                 if (foundDetourHere) {
