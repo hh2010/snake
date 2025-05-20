@@ -230,17 +230,20 @@ private:
       if (unreachable.any) {
         // std::cout << "got here" << std::endl;
         // Calculate steps_to_clear_unreachables based on unreachable cells
+
+        // these next few things should be attributes of the Unreachable struct
         int unreachable_count = 0;
         for (bool r : unreachable.reachable) {
           if (!r) unreachable_count++;
         }
-        int steps_to_clear_unreachables = unreachable.dist_to_farthest == INT_MAX ? INT_MAX : unreachable.dist_to_farthest + unreachable_count;
-        int extra_steps_desired = std::min(10, steps_to_clear_unreachables / 2);
-        assert(extra_steps_desired >= 0);
+        int steps_to_clear_unreachables = unreachable.dist_to_farthest == INT_MAX ? INT_MAX : int(unreachable.dist_to_farthest / 1000) + unreachable_count;
+        float unreachables_cost = (steps_to_clear_unreachables == INT_MAX) ? 50.0 : std::min(50.0, steps_to_clear_unreachables / 2.0);
+        assert(unreachables_cost >= 0);
+        // std::cout << unreachable_count << " unreachables, cost=" << unreachables_cost << " dist to farthest=" << unreachable.dist_to_farthest << std::endl; 
 
         // std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
         //       << extra_steps_desired << " extra steps desired" << std::endl;
-        path_planner.setExtraStepsRange({2, 5, 10});
+        path_planner.setExtraStepsRange({2, int(.3 * unreachables_cost), int(0.75 * unreachables_cost)});
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
 
         //   TODO: Decide what to do about this logging

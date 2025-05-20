@@ -8,6 +8,7 @@
 #include "path_planning_result.hpp"
 #include <chrono>
 #include <iostream>
+#include <unordered_set>
 
 struct PathExtensionTimer {
     static std::chrono::nanoseconds total_time;
@@ -56,12 +57,14 @@ class SnakePathPlanner {
 public:
     SnakePathPlanner(int extraStepsDesired) : extra_steps_values({extraStepsDesired}) {}
     
-    void setExtraStepsDesired(int extraStepsDesired) {
-        extra_steps_values = {extraStepsDesired};
-    }
-    
     void setExtraStepsRange(const std::vector<int>& stepsRange) {
-        extra_steps_values = stepsRange;
+        std::unordered_set<int> seen;
+        extra_steps_values.clear();
+        for (int value : stepsRange) {
+            if (seen.insert(value).second) {
+                extra_steps_values.push_back(value);
+            }
+        }
     }
     
     std::vector<int> getExtraStepsRange() const {
@@ -259,36 +262,6 @@ public:
         return false;
     }
     
-    PathPlanningResult evaluateExtendedPath(
-        const Game& game,
-        std::vector<Coord>& originalPath,
-        std::vector<Coord>& extendedPath,
-        Unreachables& originalUnreachable,
-            const std::function<int(Coord, Coord, Dir)>& edgeFunction) {
-        
-        auto eval_start_time = std::chrono::high_resolution_clock::now();
-        
-        auto afterExtended = after_moves(game, extendedPath, Lookahead::many_move_tail);
-        auto extendedUnreachable = cell_tree_unreachables(afterExtended);
-        
-        auto eval_end_time = std::chrono::high_resolution_clock::now();
-        PathExtensionTimer::simulation_time += eval_end_time - eval_start_time;
-        
-        int originalUnreachableCount = originalUnreachable.countUnreachableCells();
-        int extendedUnreachableCount = extendedUnreachable.countUnreachableCells();
-
-        // std::cout << "Original unreachable cells: " << originalUnreachableCount << std::endl;
-        // std::cout << "Extended unreachable cells: " << extendedUnreachableCount << std::endl;
-        
-        if (extendedUnreachableCount == 0) {
-            // std::cout << "Extended path eliminates unreachable cells, returning extended path" << std::endl;
-            return PathPlanningResult(extendedPath, extendedUnreachable);
-        }
-        
-        // std::cout << "Extended path does not improve unreachable cells, returning original path" << std::endl;
-        return PathPlanningResult(originalPath, originalUnreachable);
-    }
-    
     std::vector<Coord> findReconnectPath(
         const GameBase& gameState, 
         Coord fromPos, 
@@ -364,34 +337,20 @@ public:
         
         // Try each value in the range until we find one that eliminates unreachables
         for (int extra_steps : extra_steps_values) {
-            // std::cout << "Trying with extra_steps_desired = " << extra_steps << std::endl;
-            
+            // std::cout << "turn=" << game.turn << " - " << "extra_steps_desired=" << extra_steps << " - " << std::endl;
             std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction, extra_steps);
             auto afterExtended = after_moves(game, resultPath, Lookahead::many_move_tail);
             auto extendedUnreachable = cell_tree_unreachables(afterExtended);
             
             // If this value eliminated all unreachables, return early
             if (extendedUnreachable.countUnreachableCells() == 0) {
-                // std::cout << "Found path that eliminates unreachables with " << extra_steps << " extra steps" << std::endl;
+                std::cout << "turn=" << game.turn << " extra_steps_got=" << extra_steps << " dist_to_farthest=" << originalUnreachable.dist_to_farthest / 1000 << " unreachables_cleared=" << originalUnreachable.countUnreachableCells() << std::endl;
                 auto end_time = std::chrono::high_resolution_clock::now();
                 PathExtensionTimer::total_time += end_time - start_time;
                 return PathPlanningResult(resultPath, extendedUnreachable);
             }
         }
-        
-        // If no value eliminated all unreachables, try one more time with the last value
-        // and return the evaluation result
-        if (!extra_steps_values.empty()) {
-            int last_value = extra_steps_values.back();
-            std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction, last_value);
-            PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
-            
-            auto end_time = std::chrono::high_resolution_clock::now();
-            PathExtensionTimer::total_time += end_time - start_time;
-            
-            return evaluationResult;
-        }
-        
+ 
         auto end_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::total_time += end_time - start_time;
         
