@@ -271,8 +271,8 @@ public:
         std::cout << "Original unreachable cells: " << originalUnreachableCount << std::endl;
         std::cout << "Extended unreachable cells: " << extendedUnreachableCount << std::endl;
         
-        if (extendedUnreachableCount < originalUnreachableCount) {
-            std::cout << "Extended path reduces unreachable cells, returning extended path" << std::endl;
+        if (extendedUnreachableCount == 0) {
+            std::cout << "Extended path eliminates unreachable cells, returning extended path" << std::endl;
             return PathPlanningResult(extendedPath, extendedUnreachable);
         }
         
