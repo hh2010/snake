@@ -221,14 +221,14 @@ private:
     if (detour != DetourStrategy::none) {
       Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
-        std::cout << "HAHA" << std::endl;
+        // std::cout << "HAHA" << std::endl;
         Coord pos2 = cached_path.back();
         cached_path.pop_back();
         return pos2 - pos;
       }
 
       if (unreachable.any) {
-        std::cout << "got here" << std::endl;
+        // std::cout << "got here" << std::endl;
         // Calculate steps_to_clear_unreachables based on unreachable cells
         int unreachable_count = 0;
         for (bool r : unreachable.reachable) {
@@ -238,8 +238,8 @@ private:
         int extra_steps_desired = std::min(10, steps_to_clear_unreachables / 2);
         assert(extra_steps_desired >= 0);
 
-        std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
-              << extra_steps_desired << " extra steps desired" << std::endl;
+        // std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
+        //       << extra_steps_desired << " extra steps desired" << std::endl;
         path_planner.setExtraStepsDesired(2);
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
 
