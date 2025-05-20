@@ -54,14 +54,22 @@ int PathExtensionTimer::successful_detours = 0;
 
 class SnakePathPlanner {
 public:
-    SnakePathPlanner(int extraStepsDesired) : extra_steps_desired(extraStepsDesired) {}
+    SnakePathPlanner(int extraStepsDesired) : extra_steps_values({extraStepsDesired}) {}
     
     void setExtraStepsDesired(int extraStepsDesired) {
-        extra_steps_desired = extraStepsDesired;
+        extra_steps_values = {extraStepsDesired};
+    }
+    
+    void setExtraStepsRange(const std::vector<int>& stepsRange) {
+        extra_steps_values = stepsRange;
+    }
+    
+    std::vector<int> getExtraStepsRange() const {
+        return extra_steps_values;
     }
     
     int getExtraStepsDesired() const {
-        return extra_steps_desired;
+        return extra_steps_values.empty() ? 0 : extra_steps_values[0];
     }
     
     // For logging the direction name
@@ -117,7 +125,8 @@ public:
     std::vector<Coord> findDetours(
         const Game& game,
         std::vector<Coord> resultPath,
-        const std::function<int(Coord, Coord, Dir)>& edgeFunction
+        const std::function<int(Coord, Coord, Dir)>& edgeFunction,
+        int current_extra_steps_desired
     ) {
         
         int totalExtraSteps = 0;
@@ -127,16 +136,16 @@ public:
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
 
-        while (totalExtraSteps < extra_steps_desired) {
+        while (totalExtraSteps < current_extra_steps_desired) {
             bool foundDetour = false;
             detourAttempts++;
             std::vector<Coord> lastCompletePath = resultPath;  // lot of vector copies. can we do other ways? and dont love the variable names
             
             // std::cout << "  Searching for detour (iteration " << detourAttempts 
-            //           << "), current extra steps: " << totalExtraSteps << "/" << extra_steps_desired << std::endl;
+            //           << "), current extra steps: " << totalExtraSteps << "/" << current_extra_steps_desired << std::endl;
             
-            for (size_t i = 0; (i <= lastCompletePath.size() - 1) && totalExtraSteps < extra_steps_desired; ++i) {
-                // std::cout << totalExtraSteps << " / " << extra_steps_desired << std::endl;
+            for (size_t i = 0; (i <= lastCompletePath.size() - 1) && totalExtraSteps < current_extra_steps_desired; ++i) {
+                // std::cout << totalExtraSteps << " / " << current_extra_steps_desired << std::endl;
                 if (i == lastCompletePath.size() - 1) continue;
 
                 Coord currentPos = nextPos;
@@ -334,15 +343,15 @@ public:
         const std::function<int(Coord, Coord, Dir)>& edgeFunction,
         Unreachables& originalUnreachable) {
 
-        if (extra_steps_desired == 0) {
-            // std::cout << "No extra steps desired, returning original path" << std::endl;
+        if (extra_steps_values.empty()) {
+            // std::cout << "No extra steps values provided, returning original path" << std::endl;
             return PathPlanningResult(originalPath, originalUnreachable);
         }
 
         auto start_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::call_count++;
         
-        // std::cout << "Turn " << game.turn << ": Finding extended path, desired extra steps: " << extra_steps_desired << std::endl;
+        // std::cout << "Turn " << game.turn << ": Finding extended path with range of extra steps values" << std::endl;
         // std::cout << "Original path size: " << originalPath.size() << std::endl;
         // std::cout << "Original unreachable cells: " << originalUnreachable.countUnreachableCells() << std::endl;
 
@@ -353,15 +362,42 @@ public:
             return PathPlanningResult(originalPath, originalUnreachable);
         }
         
-        std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction);
-        PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
-
+        // Try each value in the range until we find one that eliminates unreachables
+        for (int extra_steps : extra_steps_values) {
+            // std::cout << "Trying with extra_steps_desired = " << extra_steps << std::endl;
+            
+            std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction, extra_steps);
+            auto afterExtended = after_moves(game, resultPath, Lookahead::many_move_tail);
+            auto extendedUnreachable = cell_tree_unreachables(afterExtended);
+            
+            // If this value eliminated all unreachables, return early
+            if (extendedUnreachable.countUnreachableCells() == 0) {
+                // std::cout << "Found path that eliminates unreachables with " << extra_steps << " extra steps" << std::endl;
+                auto end_time = std::chrono::high_resolution_clock::now();
+                PathExtensionTimer::total_time += end_time - start_time;
+                return PathPlanningResult(resultPath, extendedUnreachable);
+            }
+        }
+        
+        // If no value eliminated all unreachables, try one more time with the last value
+        // and return the evaluation result
+        if (!extra_steps_values.empty()) {
+            int last_value = extra_steps_values.back();
+            std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction, last_value);
+            PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            PathExtensionTimer::total_time += end_time - start_time;
+            
+            return evaluationResult;
+        }
+        
         auto end_time = std::chrono::high_resolution_clock::now();
         PathExtensionTimer::total_time += end_time - start_time;
         
-        return evaluationResult;
+        return PathPlanningResult(originalPath, originalUnreachable);
     }
     
 private:
-    int extra_steps_desired;
+    std::vector<int> extra_steps_values;
 };
