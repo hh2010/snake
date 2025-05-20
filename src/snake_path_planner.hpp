@@ -99,26 +99,30 @@ public:
         return newGameState;
     }
 
-    std::vector<Coord> createPathToDetourPos(const std::vector<Coord>& path, size_t detourIndex) {
+    std::vector<Coord> createPathToDetourPos(const std::vector<Coord>& path, const Coord& targetPos) {
         std::vector<Coord> pathToDetourPos;
-        pathToDetourPos.reserve(detourIndex + 1);
-        
-        for (size_t j = path.size() - detourIndex; j < path.size(); j++) {
-            pathToDetourPos.push_back(path[j]);
+
+        bool haveVisitedTarget = false;
+        for (size_t j = 0; j < path.size(); j++) {
+            if (haveVisitedTarget) {
+                pathToDetourPos.push_back(path[j]);
+            }
+            if (path[j] == targetPos) {
+                haveVisitedTarget = true;
+            }
         }
         return pathToDetourPos;
     }
 
-    void findDetours(
+    std::vector<Coord> findDetours(
         const Game& game,
-        std::vector<Coord>& resultPath,
+        std::vector<Coord> resultPath,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction
     ) {
         
         int totalExtraSteps = 0;
         int detourAttempts = 0;
         int detourFound = 0;
-        std::vector<Coord> originalPath = resultPath;
         Coord nextPos = game.snake_pos();
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
@@ -126,20 +130,20 @@ public:
         while (totalExtraSteps < extra_steps_desired) {
             bool foundDetour = false;
             detourAttempts++;
+            std::vector<Coord> lastCompletePath = resultPath;  // lot of vector copies. can we do other ways? and dont love the variable names
             
             std::cout << "  Searching for detour (iteration " << detourAttempts 
                       << "), current extra steps: " << totalExtraSteps << "/" << extra_steps_desired << std::endl;
             
-            for (size_t i = 0; i <= resultPath.size() - 1; ++i) {
-                if (i == resultPath.size() - 1) continue;
+            for (size_t i = 0; (i <= lastCompletePath.size() - 1) && totalExtraSteps < extra_steps_desired; ++i) {
+                std::cout << totalExtraSteps << " / " << extra_steps_desired << std::endl;
+                if (i == lastCompletePath.size() - 1) continue;
 
                 Coord currentPos = nextPos;
-                nextPos = originalPath[originalPath.size() - 1 - i];
+                nextPos = lastCompletePath[lastCompletePath.size() - 1 - i];
 
                 std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
-                std::cout << resultPath << std::endl;
-                std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, i);
-                std::cout << pathToDetourPos << std::endl;
+                std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, nextPos);
                 
                 auto sim_start_time = std::chrono::high_resolution_clock::now();
                 auto afterAtDetourPos = (i > 0) ? after_moves(game, pathToDetourPos, Lookahead::many_move_tail) : GameBase(game);
@@ -154,6 +158,7 @@ public:
                     nextPos,
                     cell_parents,
                     edgeFunction,
+                    pathToDetourPos,
                     resultPath,
                     i,
                     totalExtraSteps);
@@ -162,7 +167,6 @@ public:
                     foundDetour = true;
                     detourFound++;
                     std::cout << "    Found detour at position " << i << std::endl;
-                    break;
                 }
                 
                 std::cout << "    No valid detours found at this position" << std::endl;
@@ -170,11 +174,6 @@ public:
             
             if (!foundDetour) {
                 std::cout << "  No more detours found after checking all positions" << std::endl;
-                break;
-            }
-            
-            if (totalExtraSteps >= extra_steps_desired) {
-                std::cout << "  Reached desired extra steps: " << totalExtraSteps << "/" << extra_steps_desired << std::endl;
                 break;
             }
         }
@@ -185,6 +184,8 @@ public:
         // Log the results of the detour search
         std::cout << "Detour search complete: " << detourFound << " detours found in " << detourAttempts << " iterations" << std::endl;
         std::cout << "Final path length: " << resultPath.size() << " (+" << totalExtraSteps << " steps)" << std::endl;
+
+        return resultPath;
     }
     
     bool tryFindDetour(
@@ -194,6 +195,7 @@ public:
         Coord nextPos,
         const Grid<Coord>& cell_parents,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction,
+        std::vector<Coord>& pathToDetourPos,
         std::vector<Coord>& resultPath,
         size_t positionIndex,
         int& totalExtraSteps) {
@@ -225,15 +227,22 @@ public:
             
             std::cout << "        Found reconnect path of length " << reconnectPath.size() << std::endl;
             
-            std::vector<Coord> newPath = buildNewPath(resultPath, positionIndex, reconnectPath);
+            std::vector<Coord> newPath = buildNewPath(resultPath, reconnectPath, detourPos, pathToDetourPos);
             int extraStepsAdded = newPath.size() - resultPath.size();
             
             std::cout << "        New path length: " << newPath.size() 
                     << " (+" << extraStepsAdded << " steps)" << std::endl;
+            std::cout << newPath << std::endl;
             
-            totalExtraSteps += extraStepsAdded;
-            resultPath = newPath;
-            PathExtensionTimer::successful_detours++;
+            if (extraStepsAdded > 0) {
+                std::cout << "        Detour added " << extraStepsAdded << " extra steps" << std::endl;
+                totalExtraSteps += extraStepsAdded;
+                resultPath = newPath;
+                PathExtensionTimer::successful_detours++;
+            }
+            else {
+                continue;
+            }
             
             return true;
         }
@@ -288,32 +297,39 @@ public:
     }
     
     std::vector<Coord> buildNewPath(
-        const std::vector<Coord>& originalPath, 
-        size_t detourIndex, 
-        const std::vector<Coord>& reconnectPath) {
-            
+        const std::vector<Coord>& resultPath, 
+        const std::vector<Coord>& reconnectPath,
+        Coord detourPos,
+        std::vector<Coord>& pathToDetourPos) {
+
         std::vector<Coord> newPath;
+        std::cout << resultPath << std::endl;
         
-        // Keep all steps before detour point
-        for (size_t j = originalPath.size() - 1; j >= originalPath.size() - detourIndex; j--) {
-            newPath.push_back(originalPath[j]);
+        // Add elements from resultPath until we find reconnectPath[0], but don't include it
+        for (const Coord& step : resultPath) {
+            if (!reconnectPath.empty() && step == reconnectPath[0]) {
+                // Stop when we find the first coordinate of reconnectPath
+                break;
+            }
+            newPath.push_back(step);
         }
-        
+
         // Add reconnect path (which leads to next position)
         for (auto& step : reconnectPath) {
             newPath.push_back(step);
         }
-        
-        // Add all remaining steps after next position
-        for (size_t j = originalPath.size() - detourIndex - 2; j > 0; j--) {
-            newPath.push_back(originalPath[j]);
+
+        newPath.push_back(detourPos);
+
+        // Keep all steps before detour point
+        for (const Coord& step : pathToDetourPos) {
+            newPath.push_back(step);
         }
-        
         return newPath;
     }
-    
+
     PathPlanningResult findExtendedPath(
-        const Game& game, 
+        const Game& game,
         std::vector<Coord>& originalPath,
         const std::function<int(Coord, Coord, Dir)>& edgeFunction,
         Unreachables& originalUnreachable) {
@@ -337,9 +353,7 @@ public:
             return PathPlanningResult(originalPath, originalUnreachable);
         }
         
-        std::vector<Coord> resultPath = originalPath;
-        
-        findDetours(game, resultPath, edgeFunction);
+        std::vector<Coord> resultPath = findDetours(game, originalPath, edgeFunction);
         PathPlanningResult evaluationResult = evaluateExtendedPath(game, originalPath, resultPath, originalUnreachable, edgeFunction);
 
         auto end_time = std::chrono::high_resolution_clock::now();

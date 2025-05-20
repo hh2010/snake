@@ -237,7 +237,7 @@ private:
 
         std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
               << extra_steps_desired << " extra steps desired" << std::endl;
-        path_planner.setExtraStepsDesired(extra_steps_desired);
+        path_planner.setExtraStepsDesired(2);
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
 
         //   TODO: Decide what to do about this logging
