@@ -200,17 +200,18 @@ private:
       return pos2 - pos;
     }
     recalculate_path = true;
-    
+    // std::cout << pos << " " << game.apple_pos << std::endl;
     // Find shortest path satisfying cell tree constraints
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
     auto edge = createEdgeFunction(game, cell_parents);
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
+    // std::cout << path << std::endl;
     auto next_step = path.back();
     
     if (log) {
       auto path_copy = path;
-      path_copy.push_back(pos); // do you even need to do this? i think it will just cut off at the grid in front of snake head?
+      path_copy.push_back(pos);
       log->add(game.turn, AgentLog::Key::plan, std::move(path_copy));
     }
 
@@ -220,12 +221,14 @@ private:
     if (detour != DetourStrategy::none) {
       Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
+        std::cout << "HAHA" << std::endl;
         Coord pos2 = cached_path.back();
         cached_path.pop_back();
         return pos2 - pos;
       }
 
       if (unreachable.any) {
+        std::cout << "got here" << std::endl;
         // Calculate steps_to_clear_unreachables based on unreachable cells
         int unreachable_count = 0;
         for (bool r : unreachable.reachable) {
@@ -249,11 +252,11 @@ private:
         path = std::move(pathResult.path);
         // Don't assign unreachable = pathResult.unreachables as it can cause issues
         updateUnreachableMetrics(game, log, pathResult.unreachable);
-        detour = pathResult.unreachable.any ? detour : DetourStrategy::none;
+        DetourStrategy detour_to_use = pathResult.unreachable.any ? detour : DetourStrategy::none;
         next_step = path.back();
         next_step = handleInvalidNextStep(next_step, path);
 
-        if (detour == DetourStrategy::any) {
+        if (detour_to_use == DetourStrategy::any) {
             // 3A: move in any other direction
             for (auto dir : dirs) {
               if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
@@ -262,7 +265,7 @@ private:
                 return dir;
               }
             }
-          } else if (detour == DetourStrategy::nearest_unreachable) {
+          } else if (detour_to_use == DetourStrategy::nearest_unreachable) {
             // 3B: move to one of the unreachable coords
             if (pathResult.unreachable.dist_to_nearest < INT_MAX) {
               // move to an unreachable coord first
