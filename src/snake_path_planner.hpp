@@ -135,7 +135,6 @@ public:
         int totalExtraSteps = 0;
         int detourAttempts = 0;
         int detourFound = 0;
-        Coord nextPos = game.snake_pos();
 
         auto detour_start_time = std::chrono::high_resolution_clock::now();
 
@@ -143,18 +142,17 @@ public:
             bool foundDetour = false;
             detourAttempts++;
             std::vector<Coord> lastCompletePath = resultPath;  // lot of vector copies. can we do other ways? and dont love the variable names
+            Coord nextPos = game.snake_pos();
             
             // std::cout << "  Searching for detour (iteration " << detourAttempts 
             //           << "), current extra steps: " << totalExtraSteps << "/" << current_extra_steps_desired << std::endl;
             
             for (size_t i = 0; (i <= lastCompletePath.size() - 1) && totalExtraSteps < current_extra_steps_desired; ++i) {
-                // std::cout << totalExtraSteps << " / " << current_extra_steps_desired << std::endl;
                 if (i == lastCompletePath.size() - 1) continue;
 
                 Coord currentPos = nextPos;
                 nextPos = lastCompletePath[lastCompletePath.size() - 1 - i];
 
-                // std::cout << "    Checking position " << i << ": current=" << currentPos << ", next=" << nextPos << std::endl;
                 std::vector<Coord> pathToDetourPos = createPathToDetourPos(resultPath, nextPos);
                 
                 auto sim_start_time = std::chrono::high_resolution_clock::now();
@@ -238,7 +236,6 @@ public:
             }
             
             // std::cout << "        Found reconnect path of length " << reconnectPath.size() << std::endl;
-            
             std::vector<Coord> newPath = buildNewPath(resultPath, reconnectPath, detourPos, pathToDetourPos);
             int extraStepsAdded = newPath.size() - resultPath.size();
             
@@ -247,7 +244,6 @@ public:
             // std::cout << newPath << std::endl;
             
             if (extraStepsAdded > 0) {
-                // std::cout << "        Detour added " << extraStepsAdded << " extra steps" << std::endl;
                 totalExtraSteps += extraStepsAdded;
                 resultPath = newPath;
                 PathExtensionTimer::successful_detours++;
@@ -255,10 +251,8 @@ public:
             else {
                 continue;
             }
-            
             return true;
         }
-        
         return false;
     }
     
@@ -344,7 +338,10 @@ public:
             
             // If this value eliminated all unreachables, return early
             if (extendedUnreachable.countUnreachableCells() == 0) {
-                std::cout << "turn=" << game.turn << " extra_steps_got=" << extra_steps << " dist_to_farthest=" << originalUnreachable.dist_to_farthest / 1000 << " unreachables_cleared=" << originalUnreachable.countUnreachableCells() << std::endl;
+                // std::cout << "turn=" << game.turn << " extra_steps_got=" << resultPath.size() - originalPath.size() << " dist_to_farthest=" << originalUnreachable.dist_to_farthest / 1000 << " unreachables_cleared=" << originalUnreachable.countUnreachableCells() << std::endl;
+                // std::cout << game << std::endl;
+                // std::cout << originalPath << std::endl;
+                // std::cout << resultPath << std::endl;
                 auto end_time = std::chrono::high_resolution_clock::now();
                 PathExtensionTimer::total_time += end_time - start_time;
                 return PathPlanningResult(resultPath, extendedUnreachable);

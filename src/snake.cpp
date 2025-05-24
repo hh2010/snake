@@ -598,7 +598,6 @@ void play(Game& game, Agent& agent, Config const& config, AgentLog* log = nullpt
       setupFloodFillDebug(game, agent, log, config.flood_fill_json, config.json_compact);
       return;
     }
-    
     auto event = game.move(agent(game,log));
     if (event == Game::Event::eat && config.trace == Trace::eat && game.turn >= config.min_trace_turn && game.turn <= config.max_trace_turn) std::cout << game;
   }

@@ -129,9 +129,11 @@ private:
 
   // Create edge function for path finding
   // TODO: i think this can be refractored to return an int
-  std::function<int(Coord, Coord, Dir)> createEdgeFunction(const GameBase& game, const Grid<Coord>& cell_parents) {
+  std::function<int(Coord, Coord, Dir)> createEdgeFunction(const GameBase& game, const Grid<Coord>& cell_parents, bool& no_apple) {
     return [&](Coord a, Coord b, Dir dir) {
-      if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game.grid[b]) {
+      // ugly
+      bool can_move = no_apple ? can_move_in_cell_tree(cell_parents, a, b, dir) && (b != game.apple_pos) : can_move_in_cell_tree(cell_parents, a, b, dir);
+      if (can_move && !game.grid[b]) {
         // small penalty for moving to same/different cell
         bool to_parent = cell(b) == cell_parents[cell(a)];
         bool to_same   = cell(b) == cell(a);
@@ -203,7 +205,10 @@ private:
     // std::cout << pos << " " << game.apple_pos << std::endl;
     // Find shortest path satisfying cell tree constraints
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
-    auto edge = createEdgeFunction(game, cell_parents);
+    bool no_apple_false = false;
+    auto edge = createEdgeFunction(game, cell_parents, no_apple_false);
+    bool no_apple_true = true;
+    auto reconnect_edge = createEdgeFunction(game, cell_parents, no_apple_true);
     auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
     // std::cout << path << std::endl;
@@ -221,14 +226,12 @@ private:
     if (detour != DetourStrategy::none) {
       Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
-        // std::cout << "HAHA" << std::endl;
         Coord pos2 = cached_path.back();
         cached_path.pop_back();
         return pos2 - pos;
       }
 
       if (unreachable.any) {
-        // std::cout << "got here" << std::endl;
         // Calculate steps_to_clear_unreachables based on unreachable cells
 
         // these next few things should be attributes of the Unreachable struct
@@ -241,10 +244,9 @@ private:
         assert(unreachables_cost >= 0);
         // std::cout << unreachable_count << " unreachables, cost=" << unreachables_cost << " dist to farthest=" << unreachable.dist_to_farthest << std::endl; 
 
-        // std::cout << "Turn " << game.turn << ": Unreachable cells detected, finding extended path with "
-        //       << extra_steps_desired << " extra steps desired" << std::endl;
-        path_planner.setExtraStepsRange({2, int(.3 * unreachables_cost), int(0.75 * unreachables_cost)});
-        PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, edge, unreachable);
+        // path_planner.setExtraStepsRange({std::min(4, int(unreachables_cost)), std::min(4, int(.5 * unreachables_cost)), std::max(4, int(unreachables_cost))});
+        path_planner.setExtraStepsRange({5});
+        PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, reconnect_edge, unreachable);
 
         //   TODO: Decide what to do about this logging
         //   // kinda inefficient to always log the plan twice, even when it doesnt change?
