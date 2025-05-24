@@ -246,7 +246,7 @@ private:
 
         // figure out why min has to be 4
         // path_planner.setExtraStepsRange({std::min(4, int(unreachables_cost)), std::min(4, int(.5 * unreachables_cost)), std::max(4, int(unreachables_cost))});
-        path_planner.setExtraStepsRange({4, 8});
+        path_planner.setExtraStepsRange({4, 8, 20}, unreachables_cost);
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, reconnect_edge, unreachable);
 
         //   TODO: Decide what to do about this logging

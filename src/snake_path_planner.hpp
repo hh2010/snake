@@ -57,11 +57,11 @@ class SnakePathPlanner {
 public:
     SnakePathPlanner(int extraStepsDesired) : extra_steps_values({extraStepsDesired}) {}
     
-    void setExtraStepsRange(const std::vector<int>& stepsRange) {
+    void setExtraStepsRange(const std::vector<int>& stepsRange, const int max_cost) {
         std::unordered_set<int> seen;
         extra_steps_values.clear();
         for (int value : stepsRange) {
-            if (seen.insert(value).second) {
+            if ((seen.insert(value).second) && value <= max_cost) {
                 extra_steps_values.push_back(value);
             }
         }
