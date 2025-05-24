@@ -244,8 +244,9 @@ private:
         assert(unreachables_cost >= 0);
         // std::cout << unreachable_count << " unreachables, cost=" << unreachables_cost << " dist to farthest=" << unreachable.dist_to_farthest << std::endl; 
 
+        // figure out why min has to be 4
         // path_planner.setExtraStepsRange({std::min(4, int(unreachables_cost)), std::min(4, int(.5 * unreachables_cost)), std::max(4, int(unreachables_cost))});
-        path_planner.setExtraStepsRange({5});
+        path_planner.setExtraStepsRange({4, 8});
         PathPlanningResult pathResult = path_planner.findExtendedPath(game, path, reconnect_edge, unreachable);
 
         //   TODO: Decide what to do about this logging
