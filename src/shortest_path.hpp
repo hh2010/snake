@@ -117,6 +117,78 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
   return out;
 }
 
+// Dynamic A* that accounts for snake movement during pathfinding
+template <typename Edge>
+Grid<Step> astar_shortest_path_dynamic_snake(
+    CoordRange dims, 
+    Edge const& edges, 
+    GameBase const& initial_game,
+    Coord from, 
+    Coord to, 
+    int min_distance_cost=1) {
+  
+  Grid<Step> out(dims, Step{INT_MAX, INVALID});
+  
+  struct Item {
+    Coord c;
+    int dist;
+    int steps_taken; // Track how many steps we've taken
+    inline bool operator < (Item const& b) const {
+      return dist > b.dist;
+    }
+  };
+  
+  std::priority_queue<Item> queue;
+  auto bound = [=](Coord a) { return min_distance_cost * (abs(a.x-to.x) + abs(a.y-to.y));};
+  
+  out[from].dist = 0;
+  queue.push(Item{from, 0+bound(from), 0});
+  
+  while (!queue.empty()) {
+    auto item = queue.top();
+    queue.pop();
+    if (item.c == to) break;
+    
+    // Create projected game state after 'steps_taken' moves
+    auto projected_game = project_game_state_for_pathfinding(initial_game, item.steps_taken);
+    
+    for (auto d : dirs) {
+      Coord b = item.c + d;
+      if (!dims.valid(b)) continue;
+      
+      // Use the projected game state for edge calculation
+      auto edge_cost = edges(item.c, b, d, projected_game);
+      if (edge_cost == INT_MAX) continue;
+      
+      int new_dist = out[item.c].dist + edge_cost;
+      if (new_dist < out[b].dist) {
+        out[b].dist = new_dist;
+        out[b].from = item.c;
+        queue.push(Item{b, new_dist+bound(b), item.steps_taken + 1});
+      }
+    }
+  }
+  return out;
+}
+
+// Helper function to simulate game state after n moves without eating apples
+GameBase project_game_state_for_pathfinding(GameBase const& game, int steps) {
+  GameBase projected = game;
+  
+  // Simulate snake tail movement (assuming no apples are eaten)
+  // We free up tail positions that would be vacated by the time we reach this step
+  int tail_moves = std::min(steps, static_cast<int>(projected.snake.size()) - 1);
+  
+  for (int i = 0; i < tail_moves; ++i) {
+    if (projected.snake.size() > 1) {
+      Coord tail = projected.snake[projected.snake.size() - 1 - i];
+      projected.grid[tail] = false; // Free up tail position
+    }
+  }
+  
+  return projected;
+}
+
 //------------------------------------------------------------------------------
 // Flood fill
 //------------------------------------------------------------------------------

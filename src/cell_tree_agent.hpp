@@ -147,6 +147,8 @@ public:
     
     // Find shortest path satisfying 1,2
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
+    
+    // Static edge function for compatibility with existing code
     auto edge = [&](Coord a, Coord b, Dir dir) {
       if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game.grid[b]) {
         // small penalty for moving to same/different cell
@@ -163,7 +165,27 @@ public:
         return INT_MAX;
       }
     };
-    auto dists = astar_shortest_path(game.grid.coords(), edge, pos, game.apple_pos, 1000);
+    
+    // Dynamic edge function that uses projected game state
+    auto edge_dynamic = [&](Coord a, Coord b, Dir dir, GameBase const& game_state) {
+      if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game_state.grid[b]) {
+        // small penalty for moving to same/different cell
+        bool to_parent = cell(b) == cell_parents[cell(a)];
+        bool to_same   = cell(b) == cell(a);
+        Dir right = rotate_clockwise(dir);
+        bool hugs_edge = !game_state.grid.valid(b+right);
+        bool hugs_wall = !hugs_edge && game_state.grid[b+right];
+        return 1000
+          + (to_parent ? parent_cell_penalty : to_same ? same_cell_penalty : new_cell_penalty)
+          + (to_same ? (hugs_edge ? edge_penalty_in  : hugs_wall ? wall_penalty_in  : open_penalty_in)
+                     : (hugs_edge ? edge_penalty_out : hugs_wall ? wall_penalty_out : open_penalty_out));
+      } else {
+        return INT_MAX;
+      }
+    };
+    
+    // Use dynamic A* that accounts for snake movement
+    auto dists = astar_shortest_path_dynamic_snake(game.grid.coords(), edge_dynamic, game, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
     auto pos2 = path.back();
     
