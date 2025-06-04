@@ -168,9 +168,12 @@ public:
     
     // Dynamic edge function that uses projected game state
     auto edge_dynamic = [&](Coord a, Coord b, Dir dir, GameBase const& game_state) {
-      if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game_state.grid[b]) {
+      // Calculate cell parents for the projected game state
+      auto projected_cell_parents = cell_tree_parents(game_state.dimensions(), game_state.snake);
+      
+      if (can_move_in_cell_tree(projected_cell_parents, a, b, dir) && !game_state.grid[b]) {
         // small penalty for moving to same/different cell
-        bool to_parent = cell(b) == cell_parents[cell(a)];
+        bool to_parent = cell(b) == projected_cell_parents[cell(a)];
         bool to_same   = cell(b) == cell(a);
         Dir right = rotate_clockwise(dir);
         bool hugs_edge = !game_state.grid.valid(b+right);
@@ -188,6 +191,17 @@ public:
     auto dists = astar_shortest_path_dynamic_snake(game.grid.coords(), edge_dynamic, game, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
     auto pos2 = path.back();
+
+    // Test specific edge costs for debugging
+    if (game.turn < 5) {
+      for (auto d : dirs) {
+        Coord next = pos + d;
+        if (game.grid.coords().valid(next)) {
+          int static_cost = edge(pos, next, d);
+          int dynamic_cost = edge_dynamic(pos, next, d, game);
+        }
+      }
+    }
     
     if (log) {
       auto path_copy = path;
