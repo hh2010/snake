@@ -254,10 +254,12 @@ GameBase project_game_state_for_pathfinding(GameBase const& game, int steps) {
   // We free up tail positions that would be vacated by the time we reach this step
   int tail_moves = std::min(steps, static_cast<int>(projected.snake.size()) - 1);
   
+  // Remove tail segments from both grid and snake
   for (int i = 0; i < tail_moves; ++i) {
     if (projected.snake.size() > 1) {
-      Coord tail = projected.snake[projected.snake.size() - 1 - i];
-      projected.grid[tail] = false; // Free up tail position
+      Coord tail = projected.snake.back();
+      projected.grid[tail] = false; // Free up tail position in grid
+      projected.snake.pop_back();   // Remove tail from snake
     }
   }
   
