@@ -191,17 +191,6 @@ public:
     auto dists = astar_shortest_path_dynamic_snake(game.grid.coords(), edge_dynamic, game, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
     auto pos2 = path.back();
-
-    // Test specific edge costs for debugging
-    if (game.turn < 5) {
-      for (auto d : dirs) {
-        Coord next = pos + d;
-        if (game.grid.coords().valid(next)) {
-          int static_cost = edge(pos, next, d);
-          int dynamic_cost = edge_dynamic(pos, next, d, game);
-        }
-      }
-    }
     
     if (log) {
       auto path_copy = path;
