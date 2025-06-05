@@ -167,24 +167,6 @@ public:
     // Find shortest path satisfying 1,2
     auto cell_parents = cell_tree_parents(game.dimensions(), game.snake);
     
-    // Static edge function for compatibility with existing code
-    auto edge = [&](Coord a, Coord b, Dir dir) {
-      if (can_move_in_cell_tree(cell_parents, a, b, dir) && !game.grid[b]) {
-        // small penalty for moving to same/different cell
-        bool to_parent = cell(b) == cell_parents[cell(a)];
-        bool to_same   = cell(b) == cell(a);
-        Dir right = rotate_clockwise(dir);
-        bool hugs_edge = !game.grid.valid(b+right);
-        bool hugs_wall = !hugs_edge && game.grid[b+right];
-        return 1000
-          + (to_parent ? parent_cell_penalty : to_same ? same_cell_penalty : new_cell_penalty)
-          + (to_same ? (hugs_edge ? edge_penalty_in  : hugs_wall ? wall_penalty_in  : open_penalty_in)
-                     : (hugs_edge ? edge_penalty_out : hugs_wall ? wall_penalty_out : open_penalty_out));
-      } else {
-        return INT_MAX;  // feel like the game should just assert out here
-      }
-    };
-    
     // Dynamic edge function that uses projected game state
     auto edge_dynamic = [&](Coord a, Coord b, Dir dir, GameBase const& game_state) {
       // Calculate cell parents for the projected game state
@@ -263,7 +245,7 @@ public:
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
           for (auto dir : dirs) {
-            if (edge(pos,pos+dir,dir) != INT_MAX && pos+dir != next_step) {
+            if (edge_dynamic(pos,pos+dir,dir,game) != INT_MAX && pos+dir != pos2) {
               //std::cout << game << "Moving " << dir << " instead of " << (pos2-pos) << " to avoid unreachables" << std::endl;
               cached_path.clear();
               return dir;
