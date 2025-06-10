@@ -159,9 +159,9 @@ public:
   Dir operator () (Game const& game, AgentLog* log = nullptr) override {
     Coord pos = game.snake_pos();
     if (!cached_path.empty() && !recalculate_path) {
-      Coord pos2 = cached_path.back();
+      Coord next_step = cached_path.back();
       cached_path.pop_back();
-      return pos2 - pos;
+      return next_step - pos;
     }
     
     // Find shortest path satisfying 1,2
@@ -191,7 +191,7 @@ public:
     // Use dynamic A* that accounts for snake movement
     auto dists = astar_shortest_path_dynamic_snake(game.grid.coords(), edge_dynamic, game, pos, game.apple_pos, 1000);
     auto path = read_path(dists, pos, game.apple_pos);
-    auto pos2 = path.back();
+    auto next_step = path.back();
     
     if (log) {
       auto path_copy = path;
@@ -216,9 +216,9 @@ public:
     if (detour != DetourStrategy::none) {    
       const Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
-        pos2 = cached_path.back();
+        next_step = cached_path.back();
         cached_path.pop_back();
-        return pos2 - pos;
+        return next_step - pos;
       }
       
       if (unreachable.any) {
@@ -245,7 +245,7 @@ public:
         if (detour == DetourStrategy::any) {
           // 3A: move in any other direction
           for (auto dir : dirs) {
-            if (edge_dynamic(pos,pos+dir,dir,game) != INT_MAX && pos+dir != pos2) {
+            if (edge_dynamic(pos,pos+dir,dir,game) != INT_MAX && pos+dir != next_step) {
               //std::cout << game << "Moving " << dir << " instead of " << (pos2-pos) << " to avoid unreachables" << std::endl;
               cached_path.clear();
               return dir;
