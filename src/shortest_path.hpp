@@ -3,6 +3,9 @@
 #include <queue>
 #include <chrono>
 
+// Forward declaration for use in template parameters
+class GameBase;
+
 //------------------------------------------------------------------------------
 // Shortest paths by breath first search
 //------------------------------------------------------------------------------
@@ -126,17 +129,6 @@ std::vector<Coord> read_path(Grid<Step> const& paths, Coord from, Coord to) {
   return steps;
 }
 
-// Add operator for Grid<string>
-std::ostream& operator << (std::ostream& out, Grid<std::string> const& grid) {
-  for (int y = 0; y < grid.h; ++y) {
-    for (int x = 0; x < grid.w; ++x) {
-      out << grid[{x,y}];
-    }
-    out << std::endl;
-  }
-  return out;
-}
-
 std::ostream& operator << (std::ostream& out, Grid<Step> const& paths) {
   Grid<std::string> vis(paths.dimensions());
   std::transform(paths.begin(), paths.end(), vis.begin(), [](Step x) {
@@ -246,6 +238,9 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   return out;
 }
 
+// Include game.hpp here for GameBase definition used in functions below
+#include "game.hpp"
+
 // Helper function to simulate game state after n moves without eating apples
 GameBase project_game_state_for_pathfinding(GameBase const& game, int steps) {
   GameBase projected = game;
@@ -270,35 +265,8 @@ GameBase project_game_state_for_pathfinding(GameBase const& game, int steps) {
 // Flood fill
 //------------------------------------------------------------------------------
 
-// Flood fill debug structure and functions
-struct FloodFillDebug {
-    int turn = -1;
-    CoordRange size;
-    std::vector<Coord> snake_pos;
-    int snake_size;
-    Coord apple_pos;
-    Coord start_coord;
-    std::vector<Grid<bool>> fill_states;
-
-    static FloodFillDebug* active_debug;
-
-    FloodFillDebug() {
-        active_debug = nullptr;
-    }
-    ~FloodFillDebug() {
-        if (active_debug == this) {
-            active_debug = nullptr;
-        }
-    }
-
-    void capture_state(const Grid<bool>& state) {
-        if (active_debug == this) {
-            fill_states.push_back(state);
-        }
-    }
-};
-
-FloodFillDebug* FloodFillDebug::active_debug = nullptr;
+// Forward declaration
+struct FloodFillDebug;
 
 // Flood fill implementation
 template <typename CanMove>

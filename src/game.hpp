@@ -2,12 +2,39 @@
 
 #include "util.hpp"
 #include "random.hpp"
-#include "shortest_path.hpp"
 #include <string>
 #include <variant>
 #include <vector>
 #include <random>
 #include <memory>
+
+// Forward declaration
+struct FloodFillDebug {
+    int turn = -1;
+    CoordRange size;
+    std::vector<Coord> snake_pos;
+    int snake_size;
+    Coord apple_pos;
+    Coord start_coord;
+    std::vector<Grid<bool>> fill_states;
+
+    static FloodFillDebug* active_debug;
+
+    FloodFillDebug() {
+        active_debug = nullptr;
+    }
+    ~FloodFillDebug() {
+        if (active_debug == this) {
+            active_debug = nullptr;
+        }
+    }
+
+    void capture_state(const Grid<bool>& state) {
+        if (active_debug == this) {
+            fill_states.push_back(state);
+        }
+    }
+};
 
 //------------------------------------------------------------------------------
 // Game state
@@ -227,6 +254,16 @@ Grid<std::string> box_draw_grid(GameBase const& game, bool color = use_color) {
   return grid;
 }
 
+std::ostream& operator << (std::ostream& out, Grid<std::string> const& grid) {
+  for (int y = 0; y < grid.h; ++y) {
+    for (int x = 0; x < grid.w; ++x) {
+      out << grid[{x,y}];
+    }
+    out << std::endl;
+  }
+  return out;
+}
+
 std::ostream& operator << (std::ostream& out, Game const& game) {
   out << "turn " << game.turn << ", size " << game.snake.size() << (game.win() ? " WIN!" : game.loss() ? " LOSS" : "") << std::endl;
   return out << box_draw_grid(game, use_color);
@@ -239,4 +276,7 @@ std::ostream& operator << (std::ostream& out, Grid<bool> const& grid) {
   });
   return out << vis;
 }
+
+// Static member definition
+FloodFillDebug* FloodFillDebug::active_debug = nullptr;
 
