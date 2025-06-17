@@ -16,6 +16,9 @@
 #include <mutex>
 #include <chrono>
 
+// Global variable to track current game number for debug output
+thread_local int current_game_number = 0;
+
 //------------------------------------------------------------------------------
 // Logging games
 //------------------------------------------------------------------------------
@@ -138,6 +141,7 @@ struct Config {
   int max_trace_turn = INT_MAX; // Maximum turn to trace until
   std::string flood_fill_json;  // Path to output flood fill debug JSON
   int flood_fill_turn = -1;     // Turn number to start logging flood fill (-1 = disabled)
+  int round_to_run = 0;
   
   void parse_optional_args(int argc, const char** argv);
 };
@@ -304,6 +308,12 @@ void Config::parse_optional_args(int argc, const char** argv) {
       flood_fill_json = argv[++i];
       flood_fill_turn = std::stoi(argv[++i]);
       // add some restrictions on this. cannot be used with json_file, can only be used for cell
+    }
+      else if (arg == "--round") {
+      if (i+1 >= argc) throw std::invalid_argument("Missing argument to " + arg);
+      round_to_run = std::stoi(argv[++i]);
+      if (round_to_run < 1) throw std::invalid_argument("Round must be positive");
+      num_rounds = 1;  // Only run a single round when --round is specified
     } else {
       throw std::invalid_argument("Unknown argument: " + arg);
     }
@@ -610,10 +620,12 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
       while (true) {
         std::unique_ptr<Agent> agent;
         RNG rng;
+        int game_number;
         {
           std::lock_guard<std::mutex> guard(mutex);
           if (remaining <= 0) return;
           remaining--;
+          game_number = config.num_rounds - remaining;
           agent = make_agent(config); // potentially uses rng
           rng = config.rng.next_rng();
         }
@@ -623,7 +635,7 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
           std::lock_guard<std::mutex> guard(mutex);
           stats.add(game, agent.get());
           if (!config.quiet) {
-            std::cout << stats.wins.size() << "/" << config.num_rounds << "\033[K\r" << std::flush;
+            std::cout << stats.wins.size() << "/" << config.num_rounds << std::endl;
           }
         }
       }
@@ -634,7 +646,7 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
     t.join();
   }
   // done
-  if (!config.quiet) std::cout << "\033[K\r";
+  if (!config.quiet) std::cout << std::endl;
   return stats;
 }
 
@@ -642,15 +654,36 @@ template <typename AgentGen>
 Stats play_multiple(AgentGen make_agent, Config& config, bool is_cheat_agent = false) {
   if (config.num_threads > 1) return play_multiple_threaded(make_agent, config, is_cheat_agent);
   Stats stats;
-  
-  for (int i = 0; i < config.num_rounds; ++i) {
+
+  if (config.round_to_run > 0) {
+    // Advance RNG state to the specific round
+    for (int i = 1; i < config.round_to_run; ++i) {
+      config.rng.next_rng(); // Skip RNG states but don't use them
+    }
+    
+    // Now run just the one round with the correct RNG state
     Game game(config.board_size, config.rng.next_rng(), is_cheat_agent);
     auto agent = make_agent(config);
     play(game, *agent, config);
     stats.add(game, agent.get());
     if (!config.quiet) {
       if (!game.win()) std::cout << game;
-      std::cout << (i+1) << "/" << config.num_rounds << "\033[K\r" << std::flush;
+      std::cout << "Ran round " << config.round_to_run << std::endl;
+    }
+    return stats;
+  }
+
+  for (int i = 0; i < config.num_rounds; ++i) {
+    if (!config.quiet) {
+      std::cout << "Starting game " << (i+1) << "/" << config.num_rounds << std::endl;
+    }
+    Game game(config.board_size, config.rng.next_rng());
+    auto agent = make_agent(config);
+    play(game, *agent, config);
+    stats.add(game);
+    if (!config.quiet) {
+      if (!game.win()) std::cout << game;
+      std::cout << (i+1) << "/" << config.num_rounds << "  " << stats;
     }
   }
   if (!config.quiet) std::cout << "\033[K\r";
@@ -777,8 +810,16 @@ int main(int argc, const char** argv) {
       config.parse_optional_args(argc-2, argv+2);
       if (!config.json_file.empty() || !config.flood_fill_json.empty()) {
         bool is_cheat_agent = (agent.name == "cheat");
-        
         LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);
+      }
+      if (!config.json_file.empty()) {
+        // Advance RNG to the specified round if needed (same logic as in play_multiple)
+        if (config.round_to_run > 0) {
+          for (int i = 1; i < config.round_to_run; ++i) {
+            config.rng.next_rng(); // Skip RNG states but don't use them
+          }
+        }
+        LoggedGame game(config.board_size, config.rng.next_rng());
         AgentLog agent_log;
         auto a = agent.make(config);
         try {
@@ -795,17 +836,16 @@ int main(int argc, const char** argv) {
         
         auto stats = play_multiple(agent.make, config, is_cheat_agent);
         std::cout << stats << std::endl;
-      }
-    }
-    
+      }    
     // Print timing stats
     ShortestPathTimer::print_stats();
     AStarTimer::print_stats();
     UnreachableTimer::print_stats();
-    
-  } catch (std::exception const& e) {
-    std::cerr << e.what() << std::endl;
-    return EXIT_FAILURE;
+  }
+}
+  catch (std::exception const& e) {
+  std::cerr << e.what() << std::endl;
+  return EXIT_FAILURE;
   }
 
   // Calculate and print total program time
