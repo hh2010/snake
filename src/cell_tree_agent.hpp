@@ -90,29 +90,6 @@ bool should_use_cached_path_for_move_tail(const Unreachables& unreachable, Looka
   return false;
 }
 
-Unreachables get_unreachables(
-    const GameBase& game, 
-    const std::vector<Coord>& path, 
-    Lookahead lookahead, 
-    const Grid<Step>& dists) {
-  if (lookahead == Lookahead::many_move_tail) {
-    auto after = after_moves(game, path, Lookahead::many_move_tail);
-    auto unreachable = cell_tree_unreachables(after, dists);
-    
-    if (!unreachable.any) {
-      return unreachable;
-    } else {
-      auto after = after_moves(game, path, Lookahead::many_keep_tail);
-      auto unreachable = cell_tree_unreachables(after, dists);
-      return unreachable;
-    }
-  } else {
-    auto after = after_moves(game, path, lookahead);
-    auto unreachable = cell_tree_unreachables(after, dists);
-    return unreachable;
-  }
-}
-
 enum class DetourStrategy {
   none,
   any,
@@ -214,7 +191,8 @@ public:
     
     // Heuristic 3: prevent making parts of the grid unreachable
     if (detour != DetourStrategy::none) {    
-      const Unreachables unreachable = get_unreachables(game, path, lookahead, dists);
+      auto after = after_moves(game, path, lookahead);
+      auto unreachable = cell_tree_unreachables(after, dists);
       if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
         next_step = cached_path.back();
         cached_path.pop_back();
