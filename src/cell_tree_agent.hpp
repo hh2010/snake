@@ -193,7 +193,7 @@ public:
     if (detour != DetourStrategy::none) {    
       auto after = after_moves(game, path, lookahead);
       auto unreachable = cell_tree_unreachables(after, dists);
-      if (should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
+      if (recalculate_path && should_use_cached_path_for_move_tail(unreachable, lookahead, cached_path)) {
         next_step = cached_path.back();
         cached_path.pop_back();
         return next_step - pos;
