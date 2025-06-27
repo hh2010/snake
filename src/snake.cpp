@@ -635,7 +635,8 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
           std::lock_guard<std::mutex> guard(mutex);
           stats.add(game, agent.get());
           if (!config.quiet) {
-            std::cout << stats.wins.size() << "/" << config.num_rounds << std::endl;
+            // std::cout << stats.wins.size() << "/" << config.num_rounds << std::endl;
+            std::cout << stats.wins.size() << "/" << config.num_rounds << "  " << stats << "\033[K\r" << std::flush;
           }
         }
       }
@@ -646,7 +647,8 @@ Stats play_multiple_threaded(AgentGen make_agent, Config& config, bool is_cheat_
     t.join();
   }
   // done
-  if (!config.quiet) std::cout << std::endl;
+  if (!config.quiet) std::cout << "\033[K\r";
+  // if (!config.quiet) std::cout << std::endl;
   return stats;
 }
 
@@ -683,7 +685,8 @@ Stats play_multiple(AgentGen make_agent, Config& config, bool is_cheat_agent = f
     stats.add(game);
     if (!config.quiet) {
       if (!game.win()) std::cout << game;
-      std::cout << (i+1) << "/" << config.num_rounds << "  " << stats;
+      std::cout << (i+1) << "/" << config.num_rounds << "  " << stats << "\033[K\r" << std::flush;
+      // std::cout << (i+1) << "/" << config.num_rounds << "  " << stats;
     }
   }
   if (!config.quiet) std::cout << "\033[K\r";
