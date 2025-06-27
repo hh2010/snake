@@ -2,6 +2,7 @@
 #include "util.hpp"
 #include <queue>
 #include <chrono>
+#include <memory>
 
 // Forward declaration for use in template parameters
 class GameBase;
@@ -199,7 +200,7 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   struct Item {
     Coord c;
     int dist;
-    int steps_taken; // Track how many steps we've taken
+    std::shared_ptr<std::vector<Dir>> path_directions; // Use shared_ptr to avoid copies
     inline bool operator < (Item const& b) const {
       return dist > b.dist;
     }
@@ -209,15 +210,15 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   auto bound = [=](Coord a) { return min_distance_cost * (abs(a.x-to.x) + abs(a.y-to.y));};
   
   out[from].dist = 0;
-  queue.push(Item{from, 0+bound(from), 0});
+  queue.push(Item{from, 0+bound(from), std::make_shared<std::vector<Dir>>()});
   
   while (!queue.empty()) {
     auto item = queue.top();
     queue.pop();
     if (item.c == to) break;
     
-    // Create projected game state after 'steps_taken' moves
-    auto projected_game = project_game_state_for_pathfinding(initial_game, item.steps_taken);
+    // Create projected game state following the actual path taken
+    auto projected_game = project_game_state_along_path(initial_game, *item.path_directions);
     
     for (auto d : dirs) {
       Coord b = item.c + d;
@@ -231,7 +232,11 @@ Grid<Step> astar_shortest_path_dynamic_snake(
       if (new_dist < out[b].dist) {
         out[b].dist = new_dist;
         out[b].from = item.c;
-        queue.push(Item{b, new_dist+bound(b), item.steps_taken + 1});
+        
+        // Create new path by extending current path with this direction
+        auto new_path = std::make_shared<std::vector<Dir>>(*item.path_directions);
+        new_path->push_back(d);
+        queue.push(Item{b, new_dist+bound(b), new_path});
       }
     }
   }
@@ -240,6 +245,49 @@ Grid<Step> astar_shortest_path_dynamic_snake(
 
 // Include game.hpp here for GameBase definition used in functions below
 #include "game.hpp"
+
+// Helper function to simulate game state after following a specific path
+GameBase project_game_state_along_path(GameBase const& game, const std::vector<Dir>& path_directions) {
+  GameBase projected = game;
+  
+  if (path_directions.empty()) {
+    return projected;
+  }
+  
+  // Clear the current snake from the grid
+  for (int i = 0; i < projected.snake.size(); ++i) {
+    projected.grid[projected.snake[i]] = false;
+  }
+  
+  // Simulate snake movement step by step, modifying the existing snake in-place
+  for (Dir direction : path_directions) {
+    Coord current_head = projected.snake.front();
+    Coord new_head = current_head + direction;
+    
+    // If we go out of bounds, stop projecting (this shouldn't happen in valid paths)
+    if (!projected.grid.valid(new_head)) {
+      break;
+    }
+    
+    // Add new head to front
+    projected.snake.push_front(new_head);
+    
+    // Remove tail (assuming no apple consumption during pathfinding)
+    // Keep snake the same size
+    if (projected.snake.size() > game.snake.size()) {
+      projected.snake.pop_back();
+    }
+  }
+  
+  // Update the grid with new snake positions
+  for (int i = 0; i < projected.snake.size(); ++i) {
+    if (projected.grid.valid(projected.snake[i])) {
+      projected.grid[projected.snake[i]] = true;
+    }
+  }
+  
+  return projected;
+}
 
 // Helper function to simulate game state after n moves without eating apples
 GameBase project_game_state_for_pathfinding(GameBase const& game, int steps) {
