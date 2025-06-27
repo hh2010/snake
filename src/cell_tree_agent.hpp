@@ -107,7 +107,7 @@ struct UnreachableMetrics {
 struct CellTreeAgent : Agent {
 public:
   // config
-  bool recalculate_path = false;
+  bool recalculate_path = true;
   Lookahead lookahead = Lookahead::many_move_tail;
   DetourStrategy detour = DetourStrategy::nearest_unreachable;
   // penalties
