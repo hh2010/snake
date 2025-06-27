@@ -811,44 +811,41 @@ int main(int argc, const char** argv) {
       auto agent = find_agent(mode);
       Config config;
       config.parse_optional_args(argc-2, argv+2);
-      if (!config.json_file.empty() || !config.flood_fill_json.empty()) {
-        bool is_cheat_agent = (agent.name == "cheat");
-        LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);
-      }
+      
       if (!config.json_file.empty()) {
-        // Advance RNG to the specified round if needed (same logic as in play_multiple)
+        bool is_cheat_agent = (agent.name == "cheat");
+        
+        // Advance RNG to the specified round if needed
         if (config.round_to_run > 0) {
           for (int i = 1; i < config.round_to_run; ++i) {
-            config.rng.next_rng(); // Skip RNG states but don't use them
+            config.rng.next_rng();
           }
         }
-        LoggedGame game(config.board_size, config.rng.next_rng());
+        
+        LoggedGame game(config.board_size, config.rng.next_rng(), is_cheat_agent);
         AgentLog agent_log;
         auto a = agent.make(config);
         try {
-        play(game, *a, config, &agent_log);
+          play(game, *a, config, &agent_log);
         } catch (const std::exception& e) {
           std::cerr << "Exception: " << e.what() << std::endl;
         }
-        if (!config.json_file.empty()) {
-          write_json(config.json_file, agent, game, agent_log, config.json_compact);
-        }
+        write_json(config.json_file, agent, game, agent_log, config.json_compact);
       } else {
-        // Check if we're using the CheatAgent
         bool is_cheat_agent = (agent.name == "cheat");
-        
         auto stats = play_multiple(agent.make, config, is_cheat_agent);
         std::cout << stats << std::endl;
-      }    
+      }
+    }
+
     // Print timing stats
     ShortestPathTimer::print_stats();
     AStarTimer::print_stats();
     UnreachableTimer::print_stats();
   }
-}
   catch (std::exception const& e) {
-  std::cerr << e.what() << std::endl;
-  return EXIT_FAILURE;
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
   }
 
   // Calculate and print total program time
