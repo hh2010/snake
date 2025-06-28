@@ -215,7 +215,7 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   while (!queue.empty()) {
     auto item = queue.top();
     queue.pop();
-    if (item.c == to) break;
+    if (item.c == to) continue;
     
     // Create projected game state following the actual path taken
     auto projected_game = project_game_state_along_path(initial_game, *item.path_directions);
