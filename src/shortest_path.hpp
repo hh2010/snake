@@ -3,9 +3,16 @@
 #include <queue>
 #include <chrono>
 #include <memory>
+#include <unordered_map>
 
 // Forward declaration for use in template parameters
 class GameBase;
+
+//------------------------------------------------------------------------------
+// No caching for now - focus on correctness first
+//------------------------------------------------------------------------------
+
+static int g_projection_calls = 0;
 
 //------------------------------------------------------------------------------
 // Shortest paths by breath first search
@@ -185,7 +192,7 @@ Grid<Step> astar_shortest_path(CoordRange dims, Edge const& edges, Coord from, C
   return out;
 }
 
-// Dynamic A* that accounts for snake movement during pathfinding
+// Dynamic A* that accounts for snake movement during pathfinding - OPTIMIZED VERSION
 template <typename Edge>
 Grid<Step> astar_shortest_path_dynamic_snake(
     CoordRange dims, 
@@ -195,14 +202,26 @@ Grid<Step> astar_shortest_path_dynamic_snake(
     Coord to, 
     int min_distance_cost=1) {
   
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
   Grid<Step> out(dims, Step{INT_MAX, INVALID});
   
   struct Item {
     Coord c;
     int dist;
-    std::shared_ptr<std::vector<Dir>> path_directions; // Use shared_ptr to avoid copies
+    std::shared_ptr<std::vector<Dir>> path_directions;
+    mutable std::shared_ptr<GameBase> cached_projection; // Lazy cache
+    
     inline bool operator < (Item const& b) const {
       return dist > b.dist;
+    }
+    
+    // Simple lazy projection - safer approach
+    const GameBase& get_projected_game(const GameBase& initial) const {
+      if (!cached_projection) {
+        cached_projection = std::make_shared<GameBase>(project_game_state_along_path(initial, *path_directions));
+      }
+      return *cached_projection;
     }
   };
   
@@ -215,17 +234,16 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   while (!queue.empty()) {
     auto item = queue.top();
     queue.pop();
-    if (item.c == to) continue;
-    
-    // Create projected game state following the actual path taken
-    auto projected_game = project_game_state_along_path(initial_game, *item.path_directions);
+    if (item.c == to) break;
     
     for (auto d : dirs) {
       Coord b = item.c + d;
       if (!dims.valid(b)) continue;
       
-      // Use the projected game state for edge calculation
+      // Only project when we need to calculate edge cost
+      const GameBase& projected_game = item.get_projected_game(initial_game);
       auto edge_cost = edges(item.c, b, d, projected_game);
+      
       if (edge_cost == INT_MAX) continue;
       
       int new_dist = out[item.c].dist + edge_cost;
@@ -240,53 +258,68 @@ Grid<Step> astar_shortest_path_dynamic_snake(
       }
     }
   }
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  AStarTimer::total_time += end_time - start_time;
+  AStarTimer::call_count++;
+  
   return out;
 }
 
 // Include game.hpp here for GameBase definition used in functions below
 #include "game.hpp"
 
-// Helper function to simulate game state after following a specific path
+// Helper function to simulate game state after following a specific path - NO CACHE FOR SAFETY
 GameBase project_game_state_along_path(GameBase const& game, const std::vector<Dir>& path_directions) {
-  GameBase projected = game;
+  g_projection_calls++;
   
   if (path_directions.empty()) {
-    return projected;
+    return GameBase(game);
   }
   
+  // Do the full simulation without caching
+  GameBase projected(game);
+  
   // Clear the current snake from the grid
-  for (int i = 0; i < projected.snake.size(); ++i) {
+  for (size_t i = 0; i < projected.snake.size(); ++i) {
     projected.grid[projected.snake[i]] = false;
   }
   
-  // Simulate snake movement step by step, modifying the existing snake in-place
+  // Simulate snake movement step by step
   for (Dir direction : path_directions) {
     Coord current_head = projected.snake.front();
     Coord new_head = current_head + direction;
     
-    // If we go out of bounds, stop projecting (this shouldn't happen in valid paths)
+    // Check if move is valid
     if (!projected.grid.valid(new_head)) {
-      break;
+      break;  // Invalid move - stop simulation
     }
     
-    // Add new head to front
     projected.snake.push_front(new_head);
     
-    // Remove tail (assuming no apple consumption during pathfinding)
-    // Keep snake the same size
+    // Maintain snake length
     if (projected.snake.size() > game.snake.size()) {
       projected.snake.pop_back();
     }
   }
   
   // Update the grid with new snake positions
-  for (int i = 0; i < projected.snake.size(); ++i) {
+  for (size_t i = 0; i < projected.snake.size(); ++i) {
     if (projected.grid.valid(projected.snake[i])) {
       projected.grid[projected.snake[i]] = true;
     }
   }
   
   return projected;
+}
+
+// Utility functions
+inline void clear_projection_cache() {
+  // No cache to clear
+}
+
+inline void print_cache_stats() {
+  std::cout << "\nProjection calls: " << g_projection_calls << std::endl;
 }
 
 // Helper function to simulate game state after n moves without eating apples
