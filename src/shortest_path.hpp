@@ -234,7 +234,7 @@ Grid<Step> astar_shortest_path_dynamic_snake(
   while (!queue.empty()) {
     auto item = queue.top();
     queue.pop();
-    if (item.c == to) break;
+    if (item.c == to) continue;
     
     for (auto d : dirs) {
       Coord b = item.c + d;
